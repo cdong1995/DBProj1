@@ -22,6 +22,9 @@ login_manager.login_view = "login"
 def time_now():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+def double_quote(s):
+    return "'" + s + "'"
+
 
 # flask_login.current_user
 class User(flask_login.UserMixin):
@@ -146,14 +149,10 @@ def world():
     return render_template('world.html', **context)
 
 
-'''
-2. 显示content的作者
-
-'''
 @app.route('/show/<c_id>', methods=['GET'])
 def show(c_id):
     scmd_0 = "SELECT C.c_id as c_id, U.user_id as user_id, U.name as name, " \
-             "C.image as image C.text as text, C.likes as likes \n" \
+             "C.image as image, C.text as text, C.likes as likes \n" \
              "FROM content as C, users as U, postcontent_relation as P " \
              "WHERE C.c_id = {} AND U.user_id=P.user_id AND P.content_id=C.c_id".format(c_id)
 
@@ -170,7 +169,7 @@ def show(c_id):
     content['name'] = row['name']
     cursor.close()
 
-    scmd_1 = "SELECT R.time as time, C.text as text \n, U.name as name, U.user_id as user_id \n" \
+    scmd_1 = "SELECT R.time as time, C.text as text, U.name as name, U.user_id as user_id \n" \
              "FROM comments as C, commentat_relation as R, postcomment_relation as P, users as U \n" \
              "WHERE C.c_id=R.comment_id AND R.content_id={} AND U.user_id=P.user_id \n" \
              "AND P.comment_id=C.c_id".format(c_id)
@@ -187,32 +186,44 @@ def show(c_id):
 
     context = dict(data=content)
     context['comments'] = comments
-    # TODO content not including comments
     return render_template('show.html', **context)
 
 
-'''
-escape error!!! If add comment, "It's a comment" => error 
-'''
 @app.route('/addComment', methods=['POST'])
 def addComment():
-    # you need to get text and content_id
     text = request.form.get('text')
-    text = "'" + text + "'"
+    text = double_quote(text)
     content_id = request.form.get('content_id')
+
     scmd_1 = "INSERT INTO comments(text) VALUES ({}) RETURNING c_id".format(text)
+
     cursor = g.conn.execute(scmd_1)
     row = cursor.fetchone()
-    if not row: raise SystemError('Error in inserting into comments table')
-    c_id = row['c_id']
+    if not row:
+        raise SystemError('Error in inserting into comments table')
 
+    c_id = row['c_id']
+    scmd_1_del = "DELETE FROM comments WHERE c_id={}".format(c_id)
     scmd_2 = "INSERT INTO postcomment_relation(user_id, comment_id) " \
              "VALUES ({}, {})".format(flask_login.current_user.id, c_id)
-    g.conn.execute(scmd_2)
+    try:
+        g.conn.execute(scmd_2)
+    except Exception as ex:
+        g.conn.execute(scmd_1_del)
+        raise ex
 
+
+    scmd_2_del = "DELETE FROM postcomment_relation " \
+                 "WHERE user_id={}, comment_id={}".format(flask_login.current_user.id, c_id)
     scmd_3 = "INSERT INTO commentat_relation(comment_id, content_id, time)" \
-             "VALUES ({}, {}, {})".format(c_id, content_id, "'" + time_now() + "'")
-    g.conn.execute(scmd_3)
+             "VALUES ({}, {}, {})".format(c_id, content_id, double_quote(time_now()))
+    try:
+        g.conn.execute(scmd_3)
+    except Exception as ex:
+        g.conn.execute(scmd_1_del)
+        g.conn.execute(scmd_2_del)
+        raise ex
+
     return redirect(url_for('show', c_id = content_id))
 
 
@@ -220,11 +231,8 @@ def addComment():
 @app.route('/addContent', methods=['POST'])
 def addContent():
     image = request.form.get('image')
-    image = str(image).encode('string-escape')
-    image = "'" + image + "'"
-    print('WARNING*******', image)
-    text = request.form.get('text')
-    text = "'" + text + "'"
+    image = double_quote(image)
+    text = double_quote(request.form.get('text'))
     scmd_1 = "INSERT INTO content(image, text) " \
              "VALUES ({}, {}) RETURNING c_id".format(image, text)
     cursor = g.conn.execute(scmd_1)
@@ -232,10 +240,16 @@ def addContent():
     if not row: raise SystemError('Error in inserting into content table')
     c_id = row['c_id']
 
+    scmd_1_del = "DELETE FROM content WHERE c_id={}".format(c_id)
     scmd_2 = "INSERT INTO postcontent_relation(content_id, user_id, time) " \
-             "VALUES ({}, {}, {})".format(c_id, flask_login.current_user.id, "'" + time_now() + "'")
+             "VALUES ({}, {}, {})".format(c_id, flask_login.current_user.id, double_quote(time_now()))
 
-    g.conn.execute(scmd_2)
+    try:
+        g.conn.execute(scmd_2)
+    except Exception as ex:
+        g.conn.execute(scmd_1_del)
+        raise  ex
+
     return redirect(url_for('profile'))
 
 @app.route('/addFollowing', methods=['POST'])
@@ -256,6 +270,7 @@ def profile():
     sql_cmd = "SELECT C.c_id as c_id, C.likes as likes, C.image as image, C.text as text\n" \
               "FROM postcontent_relation as P, content as C\n" \
               "WHERE P.content_id = C.c_id AND P.user_id={}".format(flask_login.current_user.id)
+    print("*****", sql_cmd)
     cursor = g.conn.execute(sql_cmd)
     contents = []
     for result in cursor:
@@ -290,9 +305,7 @@ def following():
             fs[following_id] = []
         content = dict()
 
-        # duplicates
         content['name'] = result['name']
-
         content['c_id'] = result['content_id']
         content['likes'] = result['likes']
         content['image'] = result['image']
@@ -341,7 +354,6 @@ def login():
         if row:
             user = User(row['user_id'], row['name'])
             print(row['user_id'], row['name'], row['pwd'])
-
             flask_login.login_user(user)
             print("Successfully login")
 
