@@ -152,14 +152,22 @@ def world():
 '''
 @app.route('/show/<c_id>', methods=['GET'])
 def show(c_id):
-    cursor = g.conn.execute("SELECT * FROM content WHERE c_id = %s", c_id)
+    scmd_0 = "SELECT C.c_id as c_id, U.user_id as user_id, U.name as name, " \
+             "C.image as image C.text as text, C.likes as likes \n" \
+             "FROM content as C, users as U, postcontent_relation as P " \
+             "WHERE C.c_id = {} AND U.user_id=P.user_id AND P.content_id=C.c_id".format(c_id)
+
+    cursor = g.conn.execute(scmd_0)
     row = cursor.fetchone()
+
     content = dict()
     # if not row: raise SystemError('Error in inserting into comments table')
     content['content_id'] = row['c_id']
     content['image'] = row['image']
     content['text'] = row['text']
     content['likes'] = row['likes']
+    content['user_id'] = row['user_id']
+    content['name'] = row['name']
     cursor.close()
 
     scmd_1 = "SELECT R.time as time, C.text as text \n, U.name as name, U.user_id as user_id \n" \
