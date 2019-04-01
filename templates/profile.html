@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+    <header>
+        <title>SocialMedia</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        <link rel="stylesheet" href="/stylesheets/main.css">
+
+    </header>
+    <body>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="/">W4111-Proj1</a>
+                    <a class="navbar-brand" href="{{url_for('profile')}}">Profile</a>
+                    <a class="navbar-brand" href="#">Following</a>
+                    <a class="navbar-brand" href="#">World</a>
+                </div>
+                <div class="collapse navbar-collapse">
+                    <ul class="nav navbar-nav navbar-right">
+                        {% if current_user.is_authenticated %}
+                            <li><a href="#">Hi, <strong>{{current_user.name}}</strong></a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        {% else%}
+                            <li><a href="/login">Login</a></li>
+                            <li><a href="/register">Sign Up</a></li>
+                       {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        <div class="container">
+            <div class="row">
+                <h1 style="text-align:center">Create a new recipe</h1>
+                      <form action="{{url_for('addContent')}}" method="POST">
+                        <div class="form-group">
+                            <label for="text">Name</label>
+                            <input class="form-control" type="text" name="text" id="text" placeholder="text">
+                        </div>
+                        <div class="form-group">
+                            <label for="image">Name</label>
+                            <input class="form-control" type="text" name="image" id="image" placeholder="image url">
+                        </div>
+                        <div class="form-group">
+                            <button class="btn btn-lg btn-primary btn-block">Submit</button>
+                        </div>
+                      </form>
+            </div>
+        </div>
+
+        <h1>History</h1>
+      <div class="container">
+        <div class="row text-center" style="display:flex; flex-wrap: wrap;">
+            {% for content in data%}
+                <div class="col-md-4 col-sm-6">
+                    <div class="thumbnail">
+                        <img src="{{content.get('image')}}">
+                        <div class="caption">
+                            <h4>{{content.get('text')}}</h4>
+                            <h5>Likes: {{content.get('likes')}}</h5>
+                        </div>
+                        <p>
+                            <a href="{{ url_for('show', c_id = content.get('c_id')) }}" class="btn btn-primary">More Info</a>
+                        </p>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+      </div>
+    </body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+    <header>
+        <title>SocialMedia</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        <link rel="stylesheet" href="/stylesheets/main.css">
+  
+    </header>
+    <body>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="/">W4111-Proj1</a>
+                    <a class="navbar-brand" href="{{ url_for('index') }}">Profile</a>
+                    <a class="navbar-brand" href="#">Following</a>
+                    <a class="navbar-brand" href="#">World</a>
+                </div>
+                <div class="collapse navbar-collapse">
+                    <ul class="nav navbar-nav navbar-right">
+                        {% if current_user.is_authenticated %}
+                            <li><a href="#">Hi, <strong>{{current_user.name}}</strong></a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        {% else%}
+                            <li><a href="/login">Login</a></li>
+                            <li><a href="/register">Sign Up</a></li>
+                       {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+    <h1>Register</h1>
+
+    {% if error %}
+      <p><strong>Error:</strong> {{ error }}
+    {% endif %}
+        
+    <form method="POST" action="/register">
+      <p>Username: <input type="text" name="username"></p>
+      <p>Password: <input type="password" name="password"></p>
+      <p>DateOfBirth: <input type="date" name="dateOfBirth"></p>
+      <p><input type="submit" value="Register"></p>
+    </form>
+
+  </body>
+</html>

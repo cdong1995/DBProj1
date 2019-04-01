@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+    <header>
+        <title>SocialMedia</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        <link rel="stylesheet" href="/stylesheets/main.css">
+  
+    </header>
+    <body>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="/">W4111-Proj1</a>
+                    <a class="navbar-brand" href="#">Profile</a>
+                    <a class="navbar-brand" href="#">Following</a>
+                    <a class="navbar-brand" href="#">World</a>
+                </div>
+                <div class="collapse navbar-collapse">
+                    <ul class="nav navbar-nav navbar-right">
+                        {% if current_user.is_authenticated %}
+                            <li><a href="#">Hi, <strong>{{current_user.name}}</strong></a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        {% else%}
+                            <li><a href="/login">Login</a></li>
+                            <li><a href="/register">Sign Up</a></li>
+                       {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container">
+           <div class="col-md-9">
+                <div class="thumbnail">
+                    <img class="img-responsive" src="{{data.get('image')}}">
+                    <div class="caption-full">
+                        <h4><a>{{data.get('text')}}</a></h4>
+                        <p>Likes: {{data.get('likes')}}</p>
+                        <p>
+                            <em>Submitted By <strong>To Do!!!</strong></em>
+                        </p>
+                        <!--The currentUser is setted up in app.js for all routes-->
+  <!--                       <% if (currentUser && recipe.author.id.equals(currentUser._id)) { %>
+                            <a class="btn btn-xs btn-warning" href="/recipes/<%= recipe._id %>/edit">Edit</a>
+                            <form id="delete-form" action="/recipes/<%= recipe._id%>?_method=DELETE" method="POST">
+                                <button class="btn btn-xs btn-danger">Delete</button>
+                            </form>
+                        <% } %> -->
+                    </div>
+                </div>
+            </div>
+            <div class="well">
+                {% for comment in comments %}
+                    <div class="row">
+                        <div class="col-md-12">
+                            <strong>{{comment.name}}</strong>
+                            <span class="pull-right">{{comment.time}}</span>
+                            <p>
+                                {{ comment.text }}
+                            </p>
+                        </div>
+                    </div>
+                {% endfor%}
+            </div>
+            <form method="POST" action="{{ url_for('addComment') }}">
+              <input type="hidden" name="content_id" value={{data.get('content_id')}}>
+              <textarea name="text" maxlength="190" placeholder="Write down your review!"></textarea>
+              <br>
+              <input type="submit" class="btn btn-xs btn-primary"value="Submit"/>
+            </form>
+        </div>
+    </body>
+</html>
