@@ -12,8 +12,8 @@
                 <div class="navbar-header">
                     <a class="navbar-brand" href="/">W4111-Proj1</a>
                     <a class="navbar-brand" href="{{url_for('profile')}}">Profile</a>
-                    <a class="navbar-brand" href="#">Following</a>
-                    <a class="navbar-brand" href="#">World</a>
+                    <a class="navbar-brand" href="{{url_for('following')}}">Following</a>
+                    <a class="navbar-brand" href="{{url_for('world')}}">World</a>
                 </div>
                 <div class="collapse navbar-collapse">
                     <ul class="nav navbar-nav navbar-right">
@@ -59,10 +59,15 @@
                             <h5>Likes: {{content.get('likes')}}</h5>
                         </div>
                         <p>
-                            <a href="{{ url_for('show', c_id = content.get('c_id')) }}" class="btn btn-primary">More Info</a>
+                            <a href="{{ url_for('show', c_id = content.get('content_id')) }}" class="btn btn-primary">More Info</a>
                         </p>
                     </div>
+                    <form action="{{url_for('deleteContent')}}" method="POST">
+                        <input type="hidden" name="content_id" value={{content.get('content_id')}}>
+                        <input type="submit" class="btn btn-xs btn-danger" value="Delete">
+                    </form>
                 </div>
+
             {% endfor %}
         </div>
       </div>

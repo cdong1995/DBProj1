@@ -175,7 +175,6 @@ def show(c_id):
         d['text'] = result['text']
         d['time'] = result['time']
         comments.append(d)
-    print(comments)
 
     context = dict(data=content)
     context['comments'] = comments
@@ -238,9 +237,20 @@ def addFollowing():
     g.conn.execute(scmd_1)
 
 
+@app.route('/deleteContent', methods=['POST'])
+def deleteContent():
+    content_id = request.form.get('content_id')
+    print(content_id)
+    # TODO
+
+    return redirect(url_for('profile'))
+
+@app.route('/deleteFollowing', methods=['POST'])
+def deleteFollowing():
+    # TODO
+    pass
+
 '''
-1. 发布content** <= 5
-2. 显示当前用户发表过的content，（目的是为了删除操作）
 3. 修改当前用户的category
 '''
 @app.route('/profile', methods=['GET'])
@@ -252,7 +262,7 @@ def profile():
     contents = []
     for result in cursor:
         content = dict()
-        content['c_id'] = result['c_id']
+        content['content_id'] = result['c_id']
         content['likes'] = result['likes']
         content['image'] = result['image']
         content['text'] = result['text']
