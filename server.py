@@ -145,7 +145,6 @@ def world():
     cursor.close()
 
     context = dict(data=content)
-    # print(context)
     return render_template('world.html', **context)
 
 
@@ -169,6 +168,14 @@ def show(c_id):
     content['name'] = row['name']
     cursor.close()
 
+    cursor = g.conn.execute('SELECT * FROM follow_relation F WHERE F.follower_id=%s AND F.following_id=%s',
+                            (flask_login.current_user.id, content['user_id']))
+    row = cursor.fetchone()
+    if row or content['user_id'] == flask_login.current_user.id:
+        content['has_followed'] = True
+    else:
+        content['has_followed'] = False
+    cursor.close()
     scmd_1 = "SELECT R.time as time, C.text as text, U.name as name, U.user_id as user_id \n" \
              "FROM comments as C, commentat_relation as R, postcomment_relation as P, users as U \n" \
              "WHERE C.c_id=R.comment_id AND R.content_id={} AND U.user_id=P.user_id \n" \
@@ -185,7 +192,55 @@ def show(c_id):
 
     context = dict(data=content)
     context['comments'] = comments
+    cursor.close()
     return render_template('show.html', **context)
+
+'''
+获取当前用户的catagory
+'''
+@app.route('/profile', methods=['GET'])
+def profile():
+    sql_cmd = "SELECT C.c_id as c_id, C.likes as likes, C.image as image, C.text as text\n" \
+              "FROM postcontent_relation as P, content as C\n" \
+              "WHERE P.content_id = C.c_id AND P.user_id={}".format(flask_login.current_user.id)
+    cursor = g.conn.execute(sql_cmd)
+    contents = []
+    for result in cursor:
+        content = dict()
+        content['content_id'] = result['c_id']
+        content['likes'] = result['likes']
+        content['image'] = result['image']
+        content['text'] = result['text']
+        contents.append(content)
+    cursor.close()
+    context = dict(data=contents)
+    return render_template('profile.html', **context)
+
+
+@app.route('/following', methods=['GET'])
+def following():
+    sql_cmd = "SELECT C.c_id as content_id, C.likes as likes, C.image as image, C.text as text, P.user_id as user_id, U.name as name \n" \
+              "FROM follow_relation as F, content as C, postcontent_relation as P, users as U \n" \
+              "WHERE F.follower_id={} AND P.content_id=C.c_id AND P.user_id=F.following_id " \
+              "AND U.user_id=F.following_id".format(flask_login.current_user.id)
+
+    cursor = g.conn.execute(sql_cmd)
+    fs = dict()
+    for result in cursor:
+        following_id = result['user_id']
+        if following_id not in fs:
+            fs[following_id] = []
+        content = dict()
+
+        content['name'] = result['name']
+        content['c_id'] = result['content_id']
+        content['likes'] = result['likes']
+        content['image'] = result['image']
+        content['text'] = result['text']
+        fs[following_id].append(content)
+    cursor.close()
+    context = dict(data=fs)
+    return render_template('following.html', **context)
 
 
 @app.route('/addComment', methods=['POST'])
@@ -200,7 +255,7 @@ def addComment():
     row = cursor.fetchone()
     if not row:
         raise SystemError('Error in inserting into comments table')
-
+    cursor.close()
     c_id = row['c_id']
     scmd_1_del = "DELETE FROM comments WHERE c_id={}".format(c_id)
     scmd_2 = "INSERT INTO postcomment_relation(user_id, comment_id) " \
@@ -238,7 +293,7 @@ def addContent():
     row = cursor.fetchone()
     if not row: raise SystemError('Error in inserting into content table')
     c_id = row['c_id']
-
+    cursor.close()
     scmd_1_del = "DELETE FROM content WHERE c_id={}".format(c_id)
     scmd_2 = "INSERT INTO postcontent_relation(content_id, user_id, time) " \
              "VALUES ({}, {}, {})".format(c_id, flask_login.current_user.id, double_quote(time_now()))
@@ -253,10 +308,11 @@ def addContent():
 
 @app.route('/addFollowing', methods=['POST'])
 def addFollowing():
-    following_id = None
+    following_id = request.form.get('user_id')
     scmd_1 = "INSERT INTO follow_relation(following_id, follower_id) " \
              "VALUES ({}, {})".format(following_id, flask_login.current_user.id)
     g.conn.execute(scmd_1)
+    return redirect(url_for('following'))
 
 
 @app.route('/deleteContent', methods=['POST'])
@@ -269,61 +325,11 @@ def deleteContent():
 
 @app.route('/deleteFollowing', methods=['POST'])
 def deleteFollowing():
+    following_id = request.form.get('user_id')
+    print(following_id)
+
     # TODO
-    pass
-
-'''
-3. 修改当前用户的category
-'''
-@app.route('/profile', methods=['GET'])
-def profile():
-    sql_cmd = "SELECT C.c_id as c_id, C.likes as likes, C.image as image, C.text as text\n" \
-              "FROM postcontent_relation as P, content as C\n" \
-              "WHERE P.content_id = C.c_id AND P.user_id={}".format(flask_login.current_user.id)
-    print("*****", sql_cmd)
-    cursor = g.conn.execute(sql_cmd)
-    contents = []
-    for result in cursor:
-        content = dict()
-        content['content_id'] = result['c_id']
-        content['likes'] = result['likes']
-        content['image'] = result['image']
-        content['text'] = result['text']
-        contents.append(content)
-    cursor.close()
-    print(contents)
-    context = dict(data=contents)
-    return render_template('profile.html', **context)
-
-
-'''
-1. 显示当前用户的following，及每个following的<=4个content
-'''
-@app.route('/following', methods=['GET'])
-def following():
-    sql_cmd = "SELECT C.c_id as content_id, C.likes as likes, C.image as image, C.text as text, P.user_id as user_id, U.name as name \n" \
-              "FROM follow_relation as F, content as C, postcontent_relation as P, users as U \n" \
-              "WHERE F.follower_id={} AND P.content_id=C.c_id AND P.user_id=F.following_id " \
-              "AND U.user_id=F.following_id".format(flask_login.current_user.id)
-
-    print(sql_cmd)
-    cursor = g.conn.execute(sql_cmd)
-    fs = dict()
-    for result in cursor:
-        following_id = result['user_id']
-        if following_id not in fs:
-            fs[following_id] = []
-        content = dict()
-
-        content['name'] = result['name']
-        content['c_id'] = result['content_id']
-        content['likes'] = result['likes']
-        content['image'] = result['image']
-        content['text'] = result['text']
-        fs[following_id].append(content)
-    print(fs)
-    context = dict(data=fs)
-    return render_template('following.html', **context)
+    return redirect(url_for('following'))
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -361,6 +367,7 @@ def login():
         cursor = g.conn.execute("SELECT * FROM users WHERE name=%s AND pwd=%s", (username, password))
 
         row = cursor.fetchone()
+        cursor.close()
         if row:
             user = User(row['user_id'], row['name'])
             print(row['user_id'], row['name'], row['pwd'])

@@ -32,6 +32,10 @@
 
             {% for following in data.items()%}
             <h3><strong>{{following[1][0].get('name')}}</strong></h3>
+                <form action="{{url_for('deleteFollowing')}}" method="POST">
+                    <input type="hidden" name="user_id" value={{following[0]}}>
+                    <input type="submit" class="btn btn-xs btn-danger" value="Unfollow">
+                </form>
             <div class="container">
                 <div class="row text-center" style="display:flex; flex-wrap: wrap;">
                 {% for content in following[1] %}

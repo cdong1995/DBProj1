@@ -37,7 +37,13 @@
                         <h4><a>{{data.get('text')}}</a></h4>
                         <p>Likes: {{data.get('likes')}}</p>
                         <p>
-                            <em>Submitted By <strong>To Do!!!</strong></em>
+                            <em>Submitted By <strong>{{data.get('name')}}</strong></em>
+                            {% if not data.get('has_followed') %}
+                                <form action="{{url_for('addFollowing')}}" method="POST">
+                                    <input type="hidden" name="user_id" value={{data.get('user_id')}}>
+                                    <input type="submit" class="btn btn-s btn-secondary" value="Follow">
+                                </form>
+                            {% endif %}
                         </p>
                         <!--The currentUser is setted up in app.js for all routes-->
   <!--                       <% if (currentUser && recipe.author.id.equals(currentUser._id)) { %>
