@@ -60,16 +60,36 @@
                         </div>
                         <p>
                             <a href="{{ url_for('show', c_id = content.get('content_id')) }}" class="btn btn-primary">More Info</a>
+                            <form action="{{url_for('deleteContent')}}" method="POST">
+                                <input type="hidden" name="content_id" value={{content.get('content_id')}}>
+                                <input type="submit" class="btn btn-s btn-danger" value="Delete">
+                            </form>
                         </p>
                     </div>
-                    <form action="{{url_for('deleteContent')}}" method="POST">
-                        <input type="hidden" name="content_id" value={{content.get('content_id')}}>
-                        <input type="submit" class="btn btn-s btn-danger" value="Delete">
-                    </form>
                 </div>
 
             {% endfor %}
         </div>
       </div>
+
+    <h1>Modify Area</h1>
+        <form action="{{url_for('modifyCatagory')}}" method="POST">
+            <select name="catagory" class="mdb-select md-form colorful-select dropdown-danger" multiple>
+              <option value="" disabled selected>Choose your interest area!</option>
+                <option value="1">animals</option>
+                <option value="2">travel</option>
+                <option value="3">movies</option>
+                <option value="4">music</option>
+                <option value="5">sport</option>
+                <option value="6">food</option>
+                <option value="7">games</option>
+                <option value="8">cars</option>
+                <option value="9">cartoon</option>
+                <option value="10">make-up</option>
+                <option value="11">robotics</option>
+            </select>
+            <input type="submit" class="btn-save btn btn-warning btn-sm" value="Save">
+        </form>
+
     </body>
 </html>

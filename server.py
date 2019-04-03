@@ -192,6 +192,18 @@ def show(c_id):
 
     context = dict(data=content)
     context['comments'] = comments
+    scmd_01 = "SELECT C.c_id as c_id, C.interest_area as interest_area \n" \
+              "FROM category as C, users as U, belongto_relation as B \n" \
+              "WHERE U.user_id=B.user_id AND C.c_id=B.c_id AND U.user_id={}".format(content['user_id'])
+    cursor = g.conn.execute(scmd_01)
+    catagory = []
+    for result in cursor:
+        dic = dict()
+        dic['c_id'] = result['c_id']
+        dic['interest_area'] = result['interest_area']
+        catagory.append(dic)
+    cursor.close()
+    context['catagory'] = catagory
     cursor.close()
     return render_template('show.html', **context)
 
@@ -214,24 +226,24 @@ def profile():
         contents.append(content)
     cursor.close()
     context = dict(data=contents)
+
+    scmd_01 = "SELECT C.c_id as c_id, C.interest_area as interest_area \n" \
+              "FROM category as C, users as U, belongto_relation as B \n" \
+              "WHERE U.user_id=B.user_id AND C.c_id=B.c_id AND U.user_id={}".format(flask_login.current_user.id)
+    cursor = g.conn.execute(scmd_01)
+    catagory = []
+    for result in cursor:
+        dic = dict()
+        dic['c_id'] = result['c_id']
+        dic['interest_area'] = result['interest_area']
+        catagory.append(dic)
+    cursor.close()
+    context['catagory'] = catagory
     return render_template('profile.html', **context)
 
 
 @app.route('/following', methods=['GET'])
 def following():
-    scmd_01 = "SELECT C.c_id as c_id, C.interest_area as interest_area \n" \
-              "FROM category as C, users as U, belongto_relation as B \n" \
-              "WHERE U.user_id=B.user_id AND C.c_id=B.c_id AND U.user_id={}".format(flask_login.current_user.id)
-    cursor = g.conn.execute(scmd_01)
-    areas = []
-    for result in cursor:
-        dic = dict()
-        dic['c_id'] = result['c_id']
-        dic['interest_area'] = result['interest_area']
-        areas.append(dic)
-    print(areas)
-    cursor.close()
-
     sql_cmd = "SELECT C.c_id as content_id, C.likes as likes, C.image as image, C.text as text, P.user_id as user_id, U.name as name \n" \
               "FROM follow_relation as F, content as C, postcontent_relation as P, users as U \n" \
               "WHERE F.follower_id={} AND P.content_id=C.c_id AND P.user_id=F.following_id " \
@@ -244,7 +256,7 @@ def following():
         if following_id not in fs:
             fs[following_id] = []
         content = dict()
-
+        # TODO 1. get the catagory of the following
         content['name'] = result['name']
         content['c_id'] = result['content_id']
         content['likes'] = result['likes']
@@ -253,8 +265,13 @@ def following():
         fs[following_id].append(content)
     cursor.close()
     context = dict(data=fs)
+
     return render_template('following.html', **context)
 
+# TODO 1. get event information  2. people who attend this event
+@app.route('event', methods=['GET'])
+def event():
+    pass
 
 @app.route('/addComment', methods=['POST'])
 def addComment():
@@ -352,6 +369,15 @@ def deleteFollowing():
     g.conn.execute(scmd_01)
     return redirect(url_for('following'))
 
+@app.route('/modifyCatagory', methods=['POST'])
+def modifyCatagory():
+    temp_dict = request.form.lists()
+    print(temp_dict)
+    selectedCatagory = temp_dict[0][1]
+    print(selectedCatagory)
+
+    #TODO 1. delete previous belongToCatagory 2. add these new catagory
+    return redirect(url_for('profile'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():

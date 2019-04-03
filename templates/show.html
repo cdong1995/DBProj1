@@ -36,8 +36,13 @@
                     <div class="caption-full">
                         <h4><a>{{data.get('text')}}</a></h4>
                         <p>Likes: {{data.get('likes')}}</p>
-                        <p>
+                        <p >
                             <em>Submitted By <strong>{{data.get('name')}}</strong></em>
+                                [
+                             {% for area in catagory %}
+                                <em class="text-warning">{{area.get('interest_area')}}</em>
+                             {% endfor %}
+                                ]
                             {% if not data.get('has_followed') %}
                                 <form action="{{url_for('addFollowing')}}" method="POST">
                                     <input type="hidden" name="user_id" value={{data.get('user_id')}}>
