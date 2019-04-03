@@ -58,7 +58,7 @@ def before_request():
     try:
         g.conn = engine.connect()
     except:
-        print("uh oh, problem connecting to database")
+        print("uh oh, there is a problem in connecting to database")
         traceback.print_exc()
         g.conn = None
 
@@ -219,6 +219,19 @@ def profile():
 
 @app.route('/following', methods=['GET'])
 def following():
+    scmd_01 = "SELECT C.c_id as c_id, C.interest_area as interest_area \n" \
+              "FROM category as C, users as U, belongto_relation as B \n" \
+              "WHERE U.user_id=B.user_id AND C.c_id=B.c_id AND U.user_id={}".format(flask_login.current_user.id)
+    cursor = g.conn.execute(scmd_01)
+    areas = []
+    for result in cursor:
+        dic = dict()
+        dic['c_id'] = result['c_id']
+        dic['interest_area'] = result['interest_area']
+        areas.append(dic)
+    print(areas)
+    cursor.close()
+
     sql_cmd = "SELECT C.c_id as content_id, C.likes as likes, C.image as image, C.text as text, P.user_id as user_id, U.name as name \n" \
               "FROM follow_relation as F, content as C, postcontent_relation as P, users as U \n" \
               "WHERE F.follower_id={} AND P.content_id=C.c_id AND P.user_id=F.following_id " \
@@ -318,17 +331,25 @@ def addFollowing():
 @app.route('/deleteContent', methods=['POST'])
 def deleteContent():
     content_id = request.form.get('content_id')
-    print(content_id)
-    # TODO
+    '''
+    If only delete entries in content table, entries in comments table won't be deleted
+    '''
+    scmd_02 = "DELETE FROM comments \n" \
+              "WHERE c_id in (SELECT C.c_id \n" \
+                             "FROM comments as C, commentat_relation as P \n" \
+                              "WHERE C.c_id=P.comment_id AND P.content_id={})".format(content_id)
 
+    scmd_01 = "DELETE FROM content WHERE c_id={}".format(content_id)
+    g.conn.execute(scmd_02)
+    g.conn.execute(scmd_01)
     return redirect(url_for('profile'))
 
 @app.route('/deleteFollowing', methods=['POST'])
 def deleteFollowing():
     following_id = request.form.get('user_id')
-    print(following_id)
-
-    # TODO
+    scmd_01 = "DELETE FROM follow_relation " \
+              "WHERE follower_id={} and following_id={}".format(flask_login.current_user.id, following_id)
+    g.conn.execute(scmd_01)
     return redirect(url_for('following'))
 
 
