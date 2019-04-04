@@ -19,6 +19,7 @@ login_manager = flask_login.LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+
 def time_now():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -342,7 +343,6 @@ def register_event(e_id, user_id):
     check if now() < event.end_time
     :param e_id:
     :param user_id:
-    :param end_time: get it from the event html
     :return: True if successfully registered, False if not successful
     """
     # now = datetime.datetime.now()
@@ -356,7 +356,6 @@ def register_event(e_id, user_id):
     g.conn.execute(scmd_1)
     return True
 
-# TODO only get current event
 @app.route('/event', methods=['GET'])
 def event():
     """
@@ -370,6 +369,9 @@ def event():
     cursor = g.conn.execute(scmd_1)
     events = []
     for result in cursor:
+        # filter out events whose end_time < now
+        if result['end_time'] < datetime.datetime.now():
+            continue
         content = dict()
         content['e_id'] = result['e_id']
         content['addr_id'] = result['addr_id']
@@ -409,7 +411,7 @@ def event_user(e_id):
 
 @app.route('/registerEvent', methods=['POST'])
 def registerEvent():
-    register_event(request.form.get('event_id'), flask_login.current_user.get_id())
+    register_event(request.form.get('event_id'), flask_login.current_user.id)
     return redirect(url_for('event'))
 
 
@@ -417,16 +419,15 @@ def registerEvent():
 @app.route('/addComment', methods=['POST'])
 def addComment():
     text = request.form.get('text')
-    text = double_quote(text)
     content_id = request.form.get('content_id')
 
-    scmd_1 = "INSERT INTO comments(text) VALUES ({}) RETURNING c_id;".format(text)
-
-    cursor = g.conn.execute(scmd_1)
+    scmd_1 = "INSERT INTO comments(text) VALUES (%s) RETURNING c_id;"
+    cursor = g.conn.execute(scmd_1, text)
     row = cursor.fetchone()
     if not row:
         raise SystemError('Error in inserting into comments table')
     cursor.close()
+
     c_id = row['c_id']
     scmd_1_del = "DELETE FROM comments WHERE c_id={};".format(c_id)
     scmd_2 = "INSERT INTO postcomment_relation(user_id, comment_id) " \
@@ -533,7 +534,6 @@ def modifyCategory():
     return redirect(url_for('profile'))
 
 
-# TODO name should be unique
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -541,6 +541,14 @@ def register():
         password = request.form['password']
         dateOfBirth = request.form['dateOfBirth']
         try:
+
+            cursor = g.conn.execute("SELECT * FROM users WHERE name=%s;", username)
+            row = cursor.fetchone()
+            if row:
+                error = 'duplicate name detected, use a different name'
+                return render_template('register.html', error=error)
+
+
             # use this to get auto-incremented primary key value
             cursor = g.conn.execute("INSERT INTO users(date_of_birth, pwd, name) \n"
                                     "VALUES (%s, %s, %s) RETURNING user_id;", (dateOfBirth, password, username))
@@ -576,7 +584,6 @@ def login():
             print(row['user_id'], row['name'], row['pwd'])
             flask_login.login_user(user)
             print("Successfully login")
-
             return redirect(url_for("world"))
 
         else:
