@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <header>
-        <title>Chinesefood</title>
+        <title>SocialMedia</title>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
         <link rel="stylesheet" href="/stylesheets/main.css">
 
@@ -29,31 +29,32 @@
                 </div>
             </div>
         </nav>
-    
-    <h1>Login</h1>
-
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <ul class=flashes>
-        {% for message in messages %}
-          <p><strong>Error: {{ message }}</strong></p>
+    <h1>Current Event</h1>
+    <div class="container">
+        <div class="row text-center" style="display:flex; flex-wrap: wrap;">
+        {% for event in data %}
+            <div class="col-md-6 col-sm-12">
+                <div class="thumbnail">
+                    <div class="caption">
+                        <h4 class="text-info">City: {{event.get('city')}}</h4>
+                        <h5>Zipcode: {{event.get('zipcode')}}</h5>
+                        <h5>Street: {{event.get('street')}}</h5>
+                        <p>{{event.get('start_time')}} ~ {{event.get('end_time')}}</p>
+                        {% if not event.get('has_registered') %}
+                         <form action="{{url_for('registerEvent')}}" method="POST">
+                                <input type="hidden" name="event_id" value={{event.get('e_id')}}>
+                                <input type="submit" class="btn btn-info" value="Register">
+                         </form>
+                        {% endif %}
+                        <br>
+                        <p>
+                            <a href="{{ url_for('event_user', e_id = event.get('e_id')) }}" class="btn btn-primary">People attend</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
         {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
-    
-<!--     {% if error %}
-      <p><strong>Error:</strong> {{ error }}
-    {% endif %} -->
-        
-    <form method="POST" action="/login">
-      <p>Username: <input type="text" name="username"></p>
-      <p>Password: <input type="password" name="password"></p>
-      {% if next %}
-        <input type="hidden" name="next" value="{{next}}">
-      {% endif %}
-      <p><input type="submit" value="Login"></p>
-    </form>
-
-  </body>
+        </div>
+      </div>
+    </body>
 </html>

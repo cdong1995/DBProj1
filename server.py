@@ -209,7 +209,7 @@ def show(c_id):
 
     context = dict(data=content)
     context['comments'] = comments
-    context['catagory'] = get_categories(content['user_id'])
+    context['category'] = get_categories(content['user_id'])
     cursor.close()
     return render_template('show.html', **context)
 
@@ -234,14 +234,14 @@ def profile():
               "FROM category as C, users as U, belongto_relation as B \n" \
               "WHERE U.user_id=B.user_id AND C.c_id=B.c_id AND U.user_id={};".format(flask_login.current_user.id)
     cursor = g.conn.execute(scmd_01)
-    catagory = []
+    category = []
     for result in cursor:
         dic = dict()
         dic['c_id'] = result['c_id']
         dic['interest_area'] = result['interest_area']
-        catagory.append(dic)
+        category.append(dic)
     cursor.close()
-    context['catagory'] = catagory
+    context['category'] = category
     return render_template('profile.html', **context)
 
 
@@ -336,7 +336,7 @@ def event_by_user(user_id):
     cursor.close()
 
 
-def register_event(e_id, user_id, end_time):
+def register_event(e_id, user_id):
     """
     fecthes start_time and end_time from event table first
     check if now() < event.end_time
@@ -345,10 +345,10 @@ def register_event(e_id, user_id, end_time):
     :param end_time: get it from the event html
     :return: True if successfully registered, False if not successful
     """
-    now = datetime.datetime.now()
-    end_time = str2datetime(end_time)
-    if now >= end_time:
-        return False
+    # now = datetime.datetime.now()
+    # end_time = str2datetime(end_time)
+    # if now >= end_time:
+    #     return False
 
 
     scmd_1 = "INSERT INTO register_relation(user_id, event_id) " \
@@ -356,7 +356,7 @@ def register_event(e_id, user_id, end_time):
     g.conn.execute(scmd_1)
     return True
 
-
+# TODO only get current event
 @app.route('/event', methods=['GET'])
 def event():
     """
@@ -364,7 +364,7 @@ def event():
     """
     scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
              "A.city as city, A.street as street, A.zipcode as zipcode," \
-             "E.start_time as start_time, E.end_time = E.end_time\n" \
+             "E.start_time as start_time, E.end_time as end_time\n" \
              "FROM event as E, at_relation as R, address as A\n" \
              "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id;"
     cursor = g.conn.execute(scmd_1)
@@ -374,12 +374,44 @@ def event():
         content['e_id'] = result['e_id']
         content['addr_id'] = result['addr_id']
         content['city'] = result['city']
-        content['street'] = result['streeet']
+        content['street'] = result['street']
         content['zipcode'] = result['zipcode']
         content['start_time'] = result['start_time']
         content['end_time'] = result['end_time']
+
+        cursor_1 = g.conn.execute('SELECT * FROM register_relation R WHERE R.user_id=%s AND R.event_id=%s;',
+                                (flask_login.current_user.id, content['e_id']))
+        row = cursor_1.fetchone()
+        if row:
+            content['has_registered'] = True
+        else:
+            content['has_registered'] = False
+        cursor_1.close()
         events.append(content)
     cursor.close()
+    context = dict(data=events)
+    return render_template('event.html', **context)
+
+@app.route('/event_user/<e_id>', methods=['GET'])
+def event_user(e_id):
+    scmd_1 = "SELECT U.name as name, U.user_id as user_id FROM register_relation R, users U "\
+             "WHERE R.user_id=U.user_id AND R.event_id={};".format(e_id)
+    cursor = g.conn.execute(scmd_1)
+    users = []
+    for result in cursor:
+        user = dict()
+        user['user_id'] = result['user_id']
+        user['name'] = result['name']
+        users.append(user)
+    cursor.close()
+    context = dict(data=users)
+    return render_template('event-user.html', **context)
+
+@app.route('/registerEvent', methods=['POST'])
+def registerEvent():
+    register_event(request.form.get('event_id'), flask_login.current_user.get_id())
+    return redirect(url_for('event'))
+
 
 
 @app.route('/addComment', methods=['POST'])
@@ -484,34 +516,30 @@ def deleteFollowing():
 
 
 
-@app.route('/modifyCatagory', methods=['POST'])
-def modifyCatagory():
+@app.route('/modifyCategory', methods=['POST'])
+def modifyCategory():
     temp_dict = request.form.lists()
-    print(temp_dict)
-    selectedCatagory = temp_dict[0][1]
-    print(selectedCatagory)
+    selectedCategory = temp_dict[0][1]
 
     user_id = flask_login.current_user.id
     scmd_01 = "DELETE FROM belongto_relation " \
               "WHERE user_id={};".format(user_id)
     g.conn.execute(scmd_01)
 
-
-    values = ['({}, {})'.format(user_id, c_id) for c_id in selectedCatagory]
+    values = ['({}, {})'.format(user_id, c_id) for c_id in selectedCategory]
     scmd_02 = "INSERT INTO belongto_relation(user_id, c_id) " \
               "VALUES {};".format(', '.join(values))
     g.conn.execute(scmd_02)
     return redirect(url_for('profile'))
 
 
-
+# TODO name should be unique
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         dateOfBirth = request.form['dateOfBirth']
-        print(dateOfBirth)
         try:
             # use this to get auto-incremented primary key value
             cursor = g.conn.execute("INSERT INTO users(date_of_birth, pwd, name) \n"
@@ -519,7 +547,7 @@ def register():
             row = cursor.fetchone()
             if not row: raise SystemError('Insertion failed')
             print('Created user with id {}'.format(row['user_id']))
-            return redirect(url_for('world'))
+            return redirect(url_for('login'))
 
         except Exception as e:
             print(e)

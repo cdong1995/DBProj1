@@ -14,6 +14,7 @@
                     <a class="navbar-brand" href="{{url_for('profile')}}">Profile</a>
                     <a class="navbar-brand" href="{{url_for('following')}}">Following</a>
                     <a class="navbar-brand" href="{{url_for('world')}}">World</a>
+                    <a class="navbar-brand" href="{{url_for('event')}}">Event</a>
                 </div>
                 <div class="collapse navbar-collapse">
                     <ul class="nav navbar-nav navbar-right">
@@ -31,8 +32,16 @@
         <h1>Your following:</h1>
 
             {% for following in data.items()%}
-            <h3><strong>{{following[1][0].get('name')}}</strong></h3>
-
+        <p>
+            <strong>{{following[1][0].get('name')}}</strong>
+            <em class="text-warning">
+                [
+                 {% for area in following[1][0].get('category') %}
+                    <em class="text-warning">{{area.get('interest_area')}}</em>
+                 {% endfor %}
+                ]
+            </em>
+        </p>
                 <form action="{{url_for('deleteFollowing')}}" method="POST">
                     <input type="hidden" name="user_id" value={{following[0]}}>
                     <input type="submit" class="btn btn-xs btn-danger" value="Unfollow">
