@@ -36,7 +36,6 @@ class User(flask_login.UserMixin):
         self.id = user_id
         self.name = name
         self.isAdmin = isAdmin
-        print(isAdmin)
     def get_id(self):
         return str(self.id) + ' ' + str(self.isAdmin)
 
@@ -48,7 +47,7 @@ def user_loader(user_id):
     :return:
     """
     user_id, isAdmin = user_id.split(' ')
-    user_id, isAdmin = int(user_id), bool(isAdmin)
+    user_id, isAdmin = int(user_id), isAdmin == 'True'
 
     if not isAdmin:
         cursor = g.conn.execute("SELECT * FROM users WHERE user_id={};".format(user_id))
@@ -94,7 +93,7 @@ def teardown_request(exception):
     At the end of the web request, this makes sure to close the database connection.
     If you don't, the database could run out of memory!
     """
-    print(exception)
+    #print(exception)
     try:
         g.conn.close()
     except Exception as e:
@@ -125,7 +124,7 @@ def index():
     """
 
     # DEBUG: this is debugging code to see what request looks like
-    print(request.args)
+    #print(request.args)
 
     #
     # Flask uses Jinja templates, which is an extension to HTML where you can
