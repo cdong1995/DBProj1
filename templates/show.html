@@ -50,6 +50,15 @@
                                     <input type="submit" class="btn btn-s btn-secondary" value="Follow">
                                 </form>
                             {% endif %}
+                        <br>
+                            {% if not data.get('has_liked') %}
+                                <form action="{{url_for('addLike')}}" method="POST">
+                                    <input type="hidden" name="content_id" value={{data.get('content_id')}}>
+                                    <button type="submit" class="btn btn-primary">
+                                      <i class="glyphicon glyphicon-thumbs-up"></i> Likes
+                                    </button>
+                                </form>
+                            {% endif %}
                         </p>
                         <!--The currentUser is setted up in app.js for all routes-->
   <!--                       <% if (currentUser && recipe.author.id.equals(currentUser._id)) { %>

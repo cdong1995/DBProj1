@@ -36,7 +36,7 @@ class User(flask_login.UserMixin):
         self.id = user_id
         self.name = name
         self.isAdmin = isAdmin
-
+        print(isAdmin)
     def get_id(self):
         return str(self.id) + ' ' + str(self.isAdmin)
 
@@ -222,6 +222,14 @@ def show(c_id):
         content['has_followed'] = True
     else:
         content['has_followed'] = False
+    cursor.close()
+    cursor = g.conn.execute('SELECT * FROM like_relation L WHERE L.user_id=%s AND L.content_id=%s;',
+                            (flask_login.current_user.id, content['content_id']))
+    row = cursor.fetchone()
+    if row:
+        content['has_liked'] = True
+    else:
+        content['has_liked'] = False
     cursor.close()
     scmd_1 = "SELECT R.time as time, C.text as text, U.name as name, U.user_id as user_id \n" \
              "FROM comments as C, commentat_relation as R, postcomment_relation as P, users as U \n" \
@@ -520,7 +528,13 @@ def addContent():
 
     return redirect(url_for('profile'))
 
-
+@app.route('/addLike', methods=['POST'])
+def addLike():
+    content_id = request.form.get('content_id')
+    scmd_1 = "INSERT INTO like_relation(user_id, content_id) " \
+             "VALUES ({}, {});".format(flask_login.current_user.id, content_id)
+    g.conn.execute(scmd_1)
+    return redirect(url_for('show', c_id = content_id))
 
 @app.route('/addFollowing', methods=['POST'])
 def addFollowing():
