@@ -32,22 +32,43 @@ def double_quote(s):
 
 # flask_login.current_user
 class User(flask_login.UserMixin):
-    def __init__(self, user_id, name):
+    def __init__(self, user_id, name, isAdmin=False):
         self.id = user_id
         self.name = name
+        self.isAdmin = isAdmin
 
     def get_id(self):
-        return self.id
+        return str(self.id) + ' ' + str(self.isAdmin)
 
 
 @login_manager.user_loader
 def user_loader(user_id):
-    cursor = g.conn.execute("SELECT * FROM users WHERE user_id={};".format(user_id))
-    row = cursor.fetchone()
-    if row:
-        return User(row['user_id'], row['name'])
+    """
+    :param user_id: str of 'id isAdmin'
+    :return:
+    """
+    user_id, isAdmin = user_id.split(' ')
+    user_id, isAdmin = int(user_id), bool(isAdmin)
+
+    if not isAdmin:
+        cursor = g.conn.execute("SELECT * FROM users WHERE user_id={};".format(user_id))
+        row = cursor.fetchone()
+        if row:
+            user = User(row['user_id'], row['name'], False)
+        else:
+            user = None
+        cursor.close()
+        return user
     else:
-        return None
+        cursor = g.conn.execute("SELECT * FROM admin WHERE admin_id={};".format(user_id))
+        row = cursor.fetchone()
+        if row:
+            user = User(row['admin_id'], row['name'], True)
+        else:
+            user = None
+        cursor.close()
+        return user
+
 
 
 @app.before_request
@@ -142,7 +163,10 @@ def index():
 
 @app.route('/world', methods=['GET'])
 def world():
-    cursor = g.conn.execute("SELECT c_id, image, text, likes FROM content;")
+    cursor = g.conn.execute("SELECT C.c_id, C.image, C.text, COUNT(L.user_id) as likes \n"
+                            "FROM content as C LEFT JOIN like_relation as L ON C.c_id=L.content_id \n"
+                            "GROUP BY C.c_id, C.image, C.text \n"
+                            "ORDER BY C.c_id;")
     content = {}
     for result in cursor:
         content[result['c_id']] = [result['image'], result['text'], result['likes']]
@@ -168,22 +192,27 @@ def get_categories(user_id):
 
 @app.route('/show/<c_id>', methods=['GET'])
 def show(c_id):
+    # why use RIGHT JOIN? Think about this: c_id is not in like_relation
     scmd_0 = "SELECT C.c_id as c_id, U.user_id as user_id, U.name as name, " \
-             "C.image as image, C.text as text, C.likes as likes \n" \
+             "C.image as image, C.text as text, \n" \
+             "(SELECT COUNT(L.user_id) " \
+             "FROM like_relation as L RIGHT JOIN content as C1 ON C1.c_id=L.content_id " \
+             "WHERE C1.c_id=C.c_id) as likes \n" \
              "FROM content as C, users as U, postcontent_relation as P " \
-             "WHERE C.c_id = {} AND U.user_id=P.user_id AND P.content_id=C.c_id;".format(c_id)
+             "WHERE C.c_id={} AND U.user_id=P.user_id AND P.content_id=C.c_id;".format(c_id, c_id)
 
     cursor = g.conn.execute(scmd_0)
     row = cursor.fetchone()
 
     content = dict()
-    # if not row: raise SystemError('Error in inserting into comments table')
+    if not row:
+        raise SystemError('Error in searching for content-{}'.format(c_id))
     content['content_id'] = row['c_id']
     content['image'] = row['image']
     content['text'] = row['text']
-    content['likes'] = row['likes']
     content['user_id'] = row['user_id']
     content['name'] = row['name']
+    content['likes'] = row['likes']
     cursor.close()
 
     cursor = g.conn.execute('SELECT * FROM follow_relation F WHERE F.follower_id=%s AND F.following_id=%s;',
@@ -216,7 +245,10 @@ def show(c_id):
 
 @app.route('/profile', methods=['GET'])
 def profile():
-    sql_cmd = "SELECT C.c_id as c_id, C.likes as likes, C.image as image, C.text as text\n" \
+    sql_cmd = "SELECT C.c_id as c_id, " \
+              "(SELECT COUNT(L.user_id) FROM like_relation as L RIGHT JOIN content as C1 ON L.content_id=C1.c_id\n" \
+              "WHERE C1.c_id=C.c_id) as likes, " \
+              "C.image as image, C.text as text\n" \
               "FROM postcontent_relation as P, content as C\n" \
               "WHERE P.content_id = C.c_id AND P.user_id={};".format(flask_login.current_user.id)
     cursor = g.conn.execute(sql_cmd)
@@ -248,7 +280,10 @@ def profile():
 
 @app.route('/following', methods=['GET'])
 def following():
-    sql_cmd = "SELECT C.c_id as content_id, C.likes as likes, C.image as image, C.text as text, P.user_id as user_id, U.name as name \n" \
+    sql_cmd = "SELECT C.c_id as content_id, " \
+              "(SELECT COUNT(L.user_id) FROM like_relation as L RIGHT JOIN content as C1 ON C1.c_id=L.content_id\n" \
+              "WHERE C1.c_id=C.c_id) as likes, " \
+              "C.image as image, C.text as text, P.user_id as user_id, U.name as name \n" \
               "FROM follow_relation as F, content as C, postcontent_relation as P, users as U \n" \
               "WHERE F.follower_id={} AND P.content_id=C.c_id AND P.user_id=F.following_id " \
               "AND U.user_id=F.following_id;".format(flask_login.current_user.id)
@@ -285,6 +320,14 @@ def admin_del_event(e_id):
     """
     scmd_1 = "DELETE FROM event WHERE e_id={};".format(e_id)
     g.conn.execute(scmd_1)
+
+"""
+TODO
+Ideas of using GROUP BY
+1. calculate the number of events by address
+2. TODO
+3. TODO
+"""
 
 
 '''
@@ -566,6 +609,35 @@ def register():
         return render_template('register.html')
 
 
+# TODO write a html for administrator login
+def login_admin():
+    if request.method == 'POST':
+
+        username = request.form['username']
+        password = request.form['password']
+
+        cursor = g.conn.execute("SELECT * FROM admin WHERE name=%s AND pwd=%s;", (username, password))
+
+        row = cursor.fetchone()
+        cursor.close()
+        if row:
+            user = User(row['admin_id'], row['name'], True)
+            print(row['admin_id'], row['name'], row['pwd'], 'Admin')
+            flask_login.login_user(user)
+            print("Successfully login")
+
+            # TODO change redirection to admin's page
+            return redirect(url_for("world"))
+
+        else:
+            error = 'Invalid username or password. Please try again!'
+            flash(error)
+
+            # TODO redirect to admin's login html
+            return render_template('login.html')
+
+    else:
+        return render_template("login.html")
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -580,8 +652,8 @@ def login():
         row = cursor.fetchone()
         cursor.close()
         if row:
-            user = User(row['user_id'], row['name'])
-            print(row['user_id'], row['name'], row['pwd'])
+            user = User(row['user_id'], row['name'], False)
+            print(row['user_id'], row['name'], row['pwd'], 'Not Admin')
             flask_login.login_user(user)
             print("Successfully login")
             return redirect(url_for("world"))
