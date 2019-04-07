@@ -165,8 +165,8 @@ def index():
 
 @app.route('/world', methods=['GET'])
 def world():
-    if(check_user_type() == 'True'):
-        return redirect(url_for('login'))
+    if check_user_type() == 'True':
+        return redirect(url_for('admin_event'))
     cursor = g.conn.execute("SELECT C.c_id, C.image, C.text, COUNT(L.user_id) as likes \n"
                             "FROM content as C LEFT JOIN like_relation as L ON C.c_id=L.content_id \n"
                             "GROUP BY C.c_id, C.image, C.text \n"
@@ -177,7 +177,6 @@ def world():
     cursor.close()
 
     context = dict(data=content)
-    print(flask_login.current_user.get_id())
     return render_template('world.html', **context)
 
 
@@ -195,10 +194,11 @@ def get_categories(user_id):
     cursor.close()
     return category
 
+
 @app.route('/show/<c_id>', methods=['GET'])
 def show(c_id):
-    if(check_user_type() == 'True'):
-        return redirect(url_for('login'))
+    if check_user_type() == 'True':
+        return redirect(url_for('admin_event'))
     # why use RIGHT JOIN? Think about this: c_id is not in like_relation
     scmd_0 = "SELECT C.c_id as c_id, U.user_id as user_id, U.name as name, " \
              "C.image as image, C.text as text, \n" \
@@ -258,9 +258,10 @@ def show(c_id):
     cursor.close()
     return render_template('show.html', **context)
 
+
 @app.route('/profile', methods=['GET'])
 def profile():
-    if(check_user_type() == 'True'):
+    if check_user_type() == 'True':
         return redirect(url_for('login'))
     sql_cmd = "SELECT C.c_id as c_id, " \
               "(SELECT COUNT(L.user_id) FROM like_relation as L RIGHT JOIN content as C1 ON L.content_id=C1.c_id\n" \
@@ -297,8 +298,8 @@ def profile():
 
 @app.route('/following', methods=['GET'])
 def following():
-    if(check_user_type() == 'True'):
-        return redirect(url_for('login'))
+    if check_user_type() == 'True':
+        return redirect(url_for('admin_event'))
     sql_cmd = "SELECT C.c_id as content_id, " \
               "(SELECT COUNT(L.user_id) FROM like_relation as L RIGHT JOIN content as C1 ON C1.c_id=L.content_id\n" \
               "WHERE C1.c_id=C.c_id) as likes, " \
@@ -326,19 +327,6 @@ def following():
 
     return render_template('following.html', **context)
 
-'''
-TODO administor delete an event
-'''
-def admin_del_event(e_id):
-    """
-    only allow administrator to delete an event published by him/her
-    enforced by: e_id
-
-    :param e_id:
-    :return:
-    """
-    scmd_1 = "DELETE FROM event WHERE e_id={};".format(e_id)
-    g.conn.execute(scmd_1)
 
 @app.route('/admin_delete_event', methods=['POST'])
 def admin_delete_event():
@@ -346,42 +334,11 @@ def admin_delete_event():
     scmd_1 = "DELETE FROM event WHERE e_id={};".format(event_id)
     g.conn.execute(scmd_1)
     return redirect(url_for('admin_event'))
-"""
-TODO
-Ideas of using GROUP BY
-1. calculate the number of events by address
-2. TODO
-3. TODO
-"""
 
-
-'''
-TODO administrator login page
-see all published events
-'''
-def event_by_admin(admin_id):
-    scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
-             "A.city as city, A.street as street, A.zipcode as zipcode," \
-             "E.start_time as start_time, E.end_time = E.end_time\n" \
-             "FROM event as E, at_relation as R, address as A, admin as D\n" \
-             "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id AND D.admin_id={};".format(admin_id)
-    cursor = g.conn.execute(scmd_1)
-    events = []
-    for result in cursor:
-        content = dict()
-        content['e_id'] = result['e_id']
-        content['addr_id'] = result['addr_id']
-        content['city'] = result['city']
-        content['street'] = result['streeet']
-        content['zipcode'] = result['zipcode']
-        content['start_time'] = result['start_time']
-        content['end_time'] = result['end_time']
-        events.append(content)
-    cursor.close()
 
 @app.route('/admin_event', methods=['GET'])
 def admin_event():
-    if(check_user_type() == 'False'):
+    if check_user_type() == 'False':
         return redirect(url_for('admin_login'))
     admin_id = flask_login.current_user.get_id().split(' ')[0]
     print(admin_id)
@@ -407,22 +364,32 @@ def admin_event():
     return render_template('admin_event.html', **context)
 
 
+
 @app.route('/addEvent', methods=['GET', 'POST'])
 def addEvent():
-    if(check_user_type() == 'False'):
+    if check_user_type() == 'False':
         return redirect(url_for('admin_login'))
     if request.method == 'GET':
         return render_template('add_event.html')
     else:
-        # TODO add to database
+        #TODO
         print(request.form)
+        start_date = ''
+        end_date = ''
+        scmd_01 = "INSERT INTO event(start_time, end_time) " \
+                  "VALUES({}, {})".format(double_quote(start_date), double_quote(end_date))
+        try:
+            cursor = g.conn.execute(scmd_01)
+            cursor.close()
+        except Exception as e:
+            print(e)
         return redirect(url_for('admin_event'))
 
 
-"""
-get all events registered by user
-"""
 def event_by_user(user_id):
+    """
+    get all events registered by user
+    """
     scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, G.time as time, " \
              "A.city as city, A.street as street, A.zipcode as zipcode," \
              "E.start_time as start_time, E.end_time as end_time\n" \
@@ -464,10 +431,11 @@ def register_event(e_id, user_id):
     g.conn.execute(scmd_1)
     return True
 
+
 @app.route('/event', methods=['GET'])
 def event():
-    if(check_user_type() == 'True'):
-        return redirect(url_for('login'))
+    if check_user_type() == 'True':
+        return redirect(url_for('admin_event'))
     scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
              "A.city as city, A.street as street, A.zipcode as zipcode," \
              "E.start_time as start_time, E.end_time as end_time\n" \
@@ -500,6 +468,7 @@ def event():
     cursor.close()
     context = dict(data=events)
     return render_template('event.html', **context)
+
 
 @app.route('/event_user/<e_id>', methods=['GET'])
 def event_user(e_id):
