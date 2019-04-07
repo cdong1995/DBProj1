@@ -3,16 +3,14 @@
     <header>
         <title>W4111-Proj1</title>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
     </header>
     <body>
         <nav class="navbar navbar-default">
             <div class="container-fluid">
                 <div class="navbar-header">
                     <a class="navbar-brand" href="/">Social</a>
-                    <a class="navbar-brand" href="{{url_for('profile')}}">Profile</a>
-                    <a class="navbar-brand" href="{{url_for('following')}}">Following</a>
-                    <a class="navbar-brand" href="{{url_for('world')}}">World</a>
-                    <a class="navbar-brand" href="{{url_for('event')}}">Event</a>
+                    <a class="navbar-brand" href="{{url_for('admin_event')}}">Event</a>
                 </div>
                 <div class="collapse navbar-collapse">
                     <ul class="nav navbar-nav navbar-right">
@@ -21,14 +19,13 @@
                             <li><a href="/logout">Logout</a></li>
                         {% else%}
                             <li><a href="/login">Login</a></li>
-                            <li><a href="/register">Sign Up</a></li>
                        {% endif %}
                     </ul>
                 </div>
             </div>
         </nav>
-    <h1>Current Event</h1>
-    <div class="container">
+    <h1>Event History</h1>
+   <div class="container">
         <div class="row text-center" style="display:flex; flex-wrap: wrap;">
         {% for event in data %}
             <div class="col-md-6 col-sm-12">
@@ -38,21 +35,19 @@
                         <h5>Zipcode: {{event.get('zipcode')}}</h5>
                         <h5>Street: {{event.get('street')}}</h5>
                         <p>{{event.get('start_time')}} ~ {{event.get('end_time')}}</p>
-                        {% if not event.get('has_registered') %}
-                         <form action="{{url_for('registerEvent')}}" method="POST">
-                                <input type="hidden" name="event_id" value={{event.get('e_id')}}>
-                                <input type="submit" class="btn btn-info" value="Register">
-                         </form>
-                        {% endif %}
                         <br>
                         <p>
                             <a href="{{ url_for('event_user', e_id = event.get('e_id')) }}" class="btn btn-primary">People attend</a>
                         </p>
+                         <form action="{{url_for('admin_delete_event')}}" method="POST">
+                                <input type="hidden" name="event_id" value={{event.get('e_id')}}>
+                                <input type="submit" class="btn btn-danger" value="Delete">
+                         </form>
                     </div>
                 </div>
             </div>
         {% endfor %}
         </div>
       </div>
-    </body>
+  </body>
 </html>

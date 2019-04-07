@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+    <header>
+        <title>W4111-Proj1</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+    </header>
+    <body>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="/">Social</a>
+                    <a class="navbar-brand" href="{{url_for('admin_event')}}">Event</a>
+                </div>
+                <div class="collapse navbar-collapse">
+                    <ul class="nav navbar-nav navbar-right">
+                        {% if current_user.is_authenticated %}
+                            <li><a href="#">Hi, <strong>{{current_user.name}}</strong></a></li>
+                            <li><a href="/logout">Logout</a></li>
+                        {% else%}
+                            <li><a href="/login">Login</a></li>
+                       {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        <h1>Publish New Event</h1>
+        <div class="container">
+            <div class="row">
+                <h1 style="text-align:center">Post a new content</h1>
+                      <form action="{{url_for('addEvent')}}" method="POST">
+                        <div class="form-group">
+                            <label for="city">City</label>
+                            <input class="form-control" type="text" name="city" id="city" placeholder="city">
+                        </div>
+                        <div class="form-group">
+                            <label for="zipcode">Zipcode</label>
+                            <input class="form-control" type="text" name="zipcode" id="zipcode" placeholder="zipcode">
+                        </div>
+                        <div class="form-group">
+                            <label for="street">Street</label>
+                            <input class="form-control" type="text" name="street" id="street" placeholder="street">
+                        </div>
+                        <div class="form-group">
+                            <label for="start_date">Start Date</label>
+                            <input class="form-control" type="date" name="start_date" id="start_date" placeholder="start_date">
+                        </div>
+                        <div class="form-group">
+                            <label for="start_time">Start Time</label>
+                            <input class="form-control" type="time" name="start_time" id="start_time" placeholder="start_time">
+                        </div>
+                        <div class="form-group">
+                            <label for="end_date">End Date</label>
+                            <input class="form-control" type="date" name="end_date" id="end_date" placeholder="end_date">
+                        </div>
+                        <div class="form-group">
+                            <label for="end_time">End Time</label>
+                            <input class="form-control" type="time" name="end_time" id="end_time" placeholder="end_time">
+                        </div>
+                        <div class="form-group">
+                            <button class="btn btn-lg btn-primary btn-block">Submit</button>
+                        </div>
+                      </form>
+            </div>
+        </div>
+  </body>
+</html>

@@ -29,6 +29,9 @@ def str2datetime(s):
 def double_quote(s):
     return "'" + s + "'"
 
+def check_user_type():
+    return flask_login.current_user.get_id().split(' ')[1]
+
 
 # flask_login.current_user
 class User(flask_login.UserMixin):
@@ -162,6 +165,8 @@ def index():
 
 @app.route('/world', methods=['GET'])
 def world():
+    if(check_user_type() == 'True'):
+        return redirect(url_for('login'))
     cursor = g.conn.execute("SELECT C.c_id, C.image, C.text, COUNT(L.user_id) as likes \n"
                             "FROM content as C LEFT JOIN like_relation as L ON C.c_id=L.content_id \n"
                             "GROUP BY C.c_id, C.image, C.text \n"
@@ -172,6 +177,7 @@ def world():
     cursor.close()
 
     context = dict(data=content)
+    print(flask_login.current_user.get_id())
     return render_template('world.html', **context)
 
 
@@ -191,6 +197,8 @@ def get_categories(user_id):
 
 @app.route('/show/<c_id>', methods=['GET'])
 def show(c_id):
+    if(check_user_type() == 'True'):
+        return redirect(url_for('login'))
     # why use RIGHT JOIN? Think about this: c_id is not in like_relation
     scmd_0 = "SELECT C.c_id as c_id, U.user_id as user_id, U.name as name, " \
              "C.image as image, C.text as text, \n" \
@@ -252,6 +260,8 @@ def show(c_id):
 
 @app.route('/profile', methods=['GET'])
 def profile():
+    if(check_user_type() == 'True'):
+        return redirect(url_for('login'))
     sql_cmd = "SELECT C.c_id as c_id, " \
               "(SELECT COUNT(L.user_id) FROM like_relation as L RIGHT JOIN content as C1 ON L.content_id=C1.c_id\n" \
               "WHERE C1.c_id=C.c_id) as likes, " \
@@ -287,6 +297,8 @@ def profile():
 
 @app.route('/following', methods=['GET'])
 def following():
+    if(check_user_type() == 'True'):
+        return redirect(url_for('login'))
     sql_cmd = "SELECT C.c_id as content_id, " \
               "(SELECT COUNT(L.user_id) FROM like_relation as L RIGHT JOIN content as C1 ON C1.c_id=L.content_id\n" \
               "WHERE C1.c_id=C.c_id) as likes, " \
@@ -328,6 +340,12 @@ def admin_del_event(e_id):
     scmd_1 = "DELETE FROM event WHERE e_id={};".format(e_id)
     g.conn.execute(scmd_1)
 
+@app.route('/admin_delete_event', methods=['POST'])
+def admin_delete_event():
+    event_id = request.form.get('event_id')
+    scmd_1 = "DELETE FROM event WHERE e_id={};".format(event_id)
+    g.conn.execute(scmd_1)
+    return redirect(url_for('admin_event'))
 """
 TODO
 Ideas of using GROUP BY
@@ -361,13 +379,53 @@ def event_by_admin(admin_id):
         events.append(content)
     cursor.close()
 
+@app.route('/admin_event', methods=['GET'])
+def admin_event():
+    if(check_user_type() == 'False'):
+        return redirect(url_for('admin_login'))
+    admin_id = flask_login.current_user.get_id().split(' ')[0]
+    print(admin_id)
+    scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
+             "A.city as city, A.street as street, A.zipcode as zipcode," \
+             "E.start_time as start_time, E.end_time as end_time\n" \
+             "FROM event as E, at_relation as R, address as A, admin as D\n" \
+             "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id AND D.admin_id={};".format(admin_id)
+    cursor = g.conn.execute(scmd_1)
+    events = []
+    for result in cursor:
+        content = dict()
+        content['e_id'] = result['e_id']
+        content['addr_id'] = result['addr_id']
+        content['city'] = result['city']
+        content['street'] = result['street']
+        content['zipcode'] = result['zipcode']
+        content['start_time'] = result['start_time']
+        content['end_time'] = result['end_time']
+        events.append(content)
+    cursor.close()
+    context = dict(data=events)
+    return render_template('admin_event.html', **context)
+
+
+@app.route('/addEvent', methods=['GET', 'POST'])
+def addEvent():
+    if(check_user_type() == 'False'):
+        return redirect(url_for('admin_login'))
+    if request.method == 'GET':
+        return render_template('add_event.html')
+    else:
+        # TODO add to database
+        print(request.form)
+        return redirect(url_for('admin_event'))
+
+
 """
 get all events registered by user
 """
 def event_by_user(user_id):
     scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, G.time as time, " \
              "A.city as city, A.street as street, A.zipcode as zipcode," \
-             "E.start_time as start_time, E.end_time = E.end_time\n" \
+             "E.start_time as start_time, E.end_time as end_time\n" \
              "FROM event as E, at_relation as R, address as A, users as U, register_relation as G\n" \
              "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id AND U.user_id={} " \
              "AND G.user_id=U.user_id AND G.event_id=E.e_id;".format(user_id)
@@ -408,9 +466,8 @@ def register_event(e_id, user_id):
 
 @app.route('/event', methods=['GET'])
 def event():
-    """
-    get all events
-    """
+    if(check_user_type() == 'True'):
+        return redirect(url_for('login'))
     scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
              "A.city as city, A.street as street, A.zipcode as zipcode," \
              "E.start_time as start_time, E.end_time as end_time\n" \
@@ -544,7 +601,6 @@ def addFollowing():
     return redirect(url_for('following'))
 
 
-
 @app.route('/deleteContent', methods=['POST'])
 def deleteContent():
     content_id = request.form.get('content_id')
@@ -622,37 +678,6 @@ def register():
         return render_template('register.html')
 
 
-# TODO write a html for administrator login
-def login_admin():
-    if request.method == 'POST':
-
-        username = request.form['username']
-        password = request.form['password']
-
-        cursor = g.conn.execute("SELECT * FROM admin WHERE name=%s AND pwd=%s;", (username, password))
-
-        row = cursor.fetchone()
-        cursor.close()
-        if row:
-            user = User(row['admin_id'], row['name'], True)
-            print(row['admin_id'], row['name'], row['pwd'], 'Admin')
-            flask_login.login_user(user)
-            print("Successfully login")
-
-            # TODO change redirection to admin's page
-            return redirect(url_for("world"))
-
-        else:
-            error = 'Invalid username or password. Please try again!'
-            flash(error)
-
-            # TODO redirect to admin's login html
-            return render_template('login.html')
-
-    else:
-        return render_template("login.html")
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -679,7 +704,33 @@ def login():
     else:
         return render_template("login.html")
 
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
 
+        username = request.form['username']
+        password = request.form['password']
+
+        cursor = g.conn.execute("SELECT * FROM admin WHERE name=%s AND pwd=%s;", (username, password))
+
+        row = cursor.fetchone()
+        cursor.close()
+        if row:
+            user = User(row['admin_id'], row['name'], True)
+            print(row['admin_id'], row['name'], row['pwd'], 'Admin')
+            flask_login.login_user(user)
+            print("Successfully login")
+
+            return redirect(url_for("admin_event"))
+
+        else:
+            error = 'Invalid username or password. Please try again!'
+            flash(error)
+
+            return render_template('admin_login.html')
+
+    else:
+        return render_template("admin_login.html")
 
 
 @app.route('/logout', methods=['GET'])
