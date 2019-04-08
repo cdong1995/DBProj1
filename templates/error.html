@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+    <header>
+        <title>W4111-Proj1</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    </header>
+    <body>
+    <h1>Error occured-{{error}}, please login again
+    </h1>
+      <p>
+          <a href="{{ url_for('login') }}" class="btn btn-primary">Login As User</a>
+          <a href="{{ url_for('admin_login') }}" class="btn btn-primary">Login As Administer</a>
+          <a href="{{ url_for('register') }}" class="btn btn-primary">Register</a>
+      </p>
+    </body>
+</html>

@@ -6,6 +6,7 @@ import traceback
 import flask_login
 import datetime
 from sqlalchemy import *
+import psycopg2
 from flask import Flask, request, render_template, g, redirect, Response, session, url_for, flash
 
 tmpl_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -58,7 +59,10 @@ def user_loader(user_id):
     user_id, isAdmin = int(user_id), isAdmin == 'True'
 
     if not isAdmin:
-        cursor = g.conn.execute("SELECT * FROM users WHERE user_id={};".format(user_id))
+        try:
+            cursor = g.conn.execute("SELECT * FROM users WHERE user_id={};".format(user_id))
+        except (Exception, psycopg2.Error, SystemError) as ex:
+            return render_error(str(ex))
         row = cursor.fetchone()
         if row:
             user = User(row['user_id'], row['name'], False)
@@ -67,7 +71,10 @@ def user_loader(user_id):
         cursor.close()
         return user
     else:
-        cursor = g.conn.execute("SELECT * FROM admin WHERE admin_id={};".format(user_id))
+        try:
+            cursor = g.conn.execute("SELECT * FROM admin WHERE admin_id={};".format(user_id))
+        except (Exception, psycopg2.Error, SystemError) as ex:
+            return render_error(str(ex))
         row = cursor.fetchone()
         if row:
             user = User(row['admin_id'], row['name'], True)
@@ -93,6 +100,7 @@ def before_request():
         print("uh oh, there is a problem in connecting to database")
         traceback.print_exc()
         g.conn = None
+        return render_error(str('Error in connecting to database'))
 
 
 @app.teardown_request
@@ -105,7 +113,8 @@ def teardown_request(exception):
     try:
         g.conn.close()
     except Exception as e:
-        print(e)
+        return render_error(str(e))
+
 
 
 @app.route('/')
@@ -157,14 +166,22 @@ def index():
     return render_template("index.html")
 
 
+def render_error(msg):
+    content = {'error':msg}
+    return render_template('error.html', **content)
+
+
 @app.route('/world', methods=['GET'])
 def world():
     if check_user_type() == 'True':
         return redirect(url_for('admin_event'))
-    cursor = g.conn.execute("SELECT C.c_id, C.image, C.text, COUNT(L.user_id) as likes \n"
-                            "FROM content as C LEFT JOIN like_relation as L ON C.c_id=L.content_id \n"
-                            "GROUP BY C.c_id, C.image, C.text \n"
-                            "ORDER BY C.c_id;")
+    try:
+        cursor = g.conn.execute("SELECT C.c_id, C.image, C.text, COUNT(L.user_id) as likes \n"
+                                "FROM content as C LEFT JOIN like_relation as L ON C.c_id=L.content_id \n"
+                                "GROUP BY C.c_id, C.image, C.text \n"
+                                "ORDER BY C.c_id ASC;")
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     content = {}
     for result in cursor:
         content[result['c_id']] = [result['image'], result['text'], result['likes']]
@@ -175,10 +192,14 @@ def world():
 
 
 def get_categories(user_id):
-    scmd_01 = "SELECT C.c_id as c_id, C.interest_area as interest_area \n" \
-              "FROM category as C, users as U, belongto_relation as B \n" \
-              "WHERE U.user_id=B.user_id AND C.c_id=B.c_id AND U.user_id={};".format(user_id)
-    cursor = g.conn.execute(scmd_01)
+    try:
+        scmd_01 = "SELECT C.c_id as c_id, C.interest_area as interest_area \n" \
+                  "FROM category as C, users as U, belongto_relation as B \n" \
+                  "WHERE U.user_id=B.user_id AND C.c_id=B.c_id AND U.user_id={} " \
+                  "ORDER BY C.c_id ASC;".format(user_id)
+        cursor = g.conn.execute(scmd_01)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     category = []
     for result in cursor:
         dic = dict()
@@ -200,14 +221,19 @@ def show(c_id):
              "FROM like_relation as L RIGHT JOIN content as C1 ON C1.c_id=L.content_id " \
              "WHERE C1.c_id=C.c_id) as likes \n" \
              "FROM content as C, users as U, postcontent_relation as P " \
-             "WHERE C.c_id={} AND U.user_id=P.user_id AND P.content_id=C.c_id;".format(c_id, c_id)
+             "WHERE C.c_id={} AND U.user_id=P.user_id AND P.content_id=C.c_id " \
+             "ORDER BY C.c_id DESC ;".format(c_id, c_id)
 
-    cursor = g.conn.execute(scmd_0)
+    try:
+        cursor = g.conn.execute(scmd_0)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
+
     row = cursor.fetchone()
 
     content = dict()
     if not row:
-        raise SystemError('Error in searching for content-{}'.format(c_id))
+        return render_error('Error in searching for content-{}'.format(c_id))
     content['content_id'] = row['c_id']
     content['image'] = row['image']
     content['text'] = row['text']
@@ -216,16 +242,24 @@ def show(c_id):
     content['likes'] = row['likes']
     cursor.close()
 
-    cursor = g.conn.execute('SELECT * FROM follow_relation F WHERE F.follower_id=%s AND F.following_id=%s;',
-                            (flask_login.current_user.id, content['user_id']))
+    try:
+        cursor = g.conn.execute('SELECT * FROM follow_relation F WHERE F.follower_id=%s AND F.following_id=%s;',
+                                (flask_login.current_user.id, content['user_id']))
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
+
     row = cursor.fetchone()
     if row or content['user_id'] == flask_login.current_user.id:
         content['has_followed'] = True
     else:
         content['has_followed'] = False
     cursor.close()
-    cursor = g.conn.execute('SELECT * FROM like_relation L WHERE L.user_id=%s AND L.content_id=%s;',
-                            (flask_login.current_user.id, content['content_id']))
+    try:
+        cursor = g.conn.execute('SELECT * FROM like_relation L WHERE L.user_id=%s AND L.content_id=%s;',
+                                (flask_login.current_user.id, content['content_id']))
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
+
     row = cursor.fetchone()
     if row:
         content['has_liked'] = True
@@ -236,7 +270,10 @@ def show(c_id):
              "FROM comments as C, commentat_relation as R, postcomment_relation as P, users as U \n" \
              "WHERE C.c_id=R.comment_id AND R.content_id={} AND U.user_id=P.user_id \n" \
              "AND P.comment_id=C.c_id;".format(c_id)
-    cursor = g.conn.execute(scmd_1)
+    try:
+        cursor = g.conn.execute(scmd_1)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     comments = []
     for result in cursor:
         d = dict()
@@ -263,7 +300,10 @@ def profile():
               "C.image as image, C.text as text\n" \
               "FROM postcontent_relation as P, content as C\n" \
               "WHERE P.content_id = C.c_id AND P.user_id={};".format(flask_login.current_user.id)
-    cursor = g.conn.execute(sql_cmd)
+    try:
+        cursor = g.conn.execute(sql_cmd)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     contents = []
     for result in cursor:
         content = dict()
@@ -278,7 +318,10 @@ def profile():
     scmd_01 = "SELECT C.c_id as c_id, C.interest_area as interest_area \n" \
               "FROM category as C, users as U, belongto_relation as B \n" \
               "WHERE U.user_id=B.user_id AND C.c_id=B.c_id AND U.user_id={};".format(flask_login.current_user.id)
-    cursor = g.conn.execute(scmd_01)
+    try:
+        cursor = g.conn.execute(scmd_01)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     category = []
     for result in cursor:
         dic = dict()
@@ -302,7 +345,10 @@ def following():
               "WHERE F.follower_id={} AND P.content_id=C.c_id AND P.user_id=F.following_id " \
               "AND U.user_id=F.following_id;".format(flask_login.current_user.id)
 
-    cursor = g.conn.execute(sql_cmd)
+    try:
+        cursor = g.conn.execute(sql_cmd)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     fs = dict()
     for result in cursor:
         following_id = result['user_id']
@@ -325,8 +371,13 @@ def following():
 @app.route('/admin_delete_event', methods=['POST'])
 def admin_delete_event():
     event_id = request.form.get('event_id')
-    scmd_1 = "DELETE FROM event WHERE e_id={};".format(event_id)
-    g.conn.execute(scmd_1)
+    scmd_1 = "DELETE FROM event WHERE e_id={} " \
+             "AND EXISTS(SELECT * FROM publish_relation as P WHERE P.admin_id={} and P.e_id={});"\
+        .format(event_id, flask_login.current_user.id, event_id)
+    try:
+        g.conn.execute(scmd_1)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     return redirect(url_for('admin_event'))
 
 
@@ -335,14 +386,17 @@ def admin_event():
     if check_user_type() == 'False':
         return redirect(url_for('admin_login'))
     admin_id = flask_login.current_user.get_id().split(' ')[0]
-    print(admin_id)
+    #print(admin_id)
     scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
              "A.city as city, A.street as street, A.zipcode as zipcode," \
              "E.start_time as start_time, E.end_time as end_time\n" \
              "FROM event as E, at_relation as R, address as A, admin as D, publish_relation as P\n" \
              "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id AND D.admin_id={} " \
              "AND D.admin_id=P.admin_id AND E.e_id=P.e_id;".format(admin_id)
-    cursor = g.conn.execute(scmd_1)
+    try:
+        cursor = g.conn.execute(scmd_1)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     events = []
     for result in cursor:
         content = dict()
@@ -364,11 +418,17 @@ def admin_event():
 def addEvent():
     def rollback_event(e_id):
         scmd = "DELETE FROM event WHERE e_id={}".format(e_id)
-        g.conn.execute(scmd)
+        try:
+            g.conn.execute(scmd)
+        except (Exception, psycopg2.Error, SystemError) as ex:
+            return render_error(str(ex))
 
     def rollback_address(addr_id):
         scmd = "DELETE FROM address WHERE addr_id={}".format(addr_id)
-        g.conn.execute(scmd)
+        try:
+            g.conn.execute(scmd)
+        except (Exception, psycopg2.Error, SystemError) as ex:
+            return render_error(str(ex))
 
 
     if check_user_type() == 'False':
@@ -382,10 +442,14 @@ def addEvent():
         scmd_01 = "INSERT INTO event(start_time, end_time) " \
                   "VALUES({}, {}) RETURNING e_id".format(double_quote(d['start_date'] + ' ' + d['start_time']),
                                                          double_quote(d['end_date'] + ' ' + d['end_time']))
-        cursor = g.conn.execute(scmd_01)
+        try:
+            cursor = g.conn.execute(scmd_01)
+        except (Exception, psycopg2.Error, SystemError) as ex:
+            return render_error(str(ex))
+
         row = cursor.fetchone()
         if not row:
-            raise Exception('Error in inserting into database')
+            return render_error('Error in inserting into database')
         e_id = row['e_id']
         cursor.close()
         city, street, zipcode = d['city'], d['street'], d['zipcode']
@@ -395,10 +459,10 @@ def addEvent():
                                                                             double_quote(zipcode))
         try:
             cursor = g.conn.execute(scmd_02)
-        except Exception as ex:
+        except (Exception, psycopg2.Error, SystemError) as ex:
             print('rolling back database')
             rollback_event(e_id)
-            raise ex
+            return render_error(str(ex))
 
         row = cursor.fetchone()
         if row:
@@ -410,34 +474,38 @@ def addEvent():
                       "VALUES({}, {}, {}) RETURNING addr_id".format(double_quote(city),
                                                   double_quote(street),
                                                   double_quote(zipcode))
-            cursor = g.conn.execute(scmd_03)
+            try:
+                cursor = g.conn.execute(scmd_03)
+            except (Exception, psycopg2.Error, SystemError) as ex:
+                return render_error(str(ex))
             row = cursor.fetchone()
             if not row:
                 print('rolling back database')
                 rollback_event(e_id)
-                raise Exception('Insertion into address table failed')
+                return render_error('Insertion into address table failed')
+
             addr_id = row['addr_id']
             cursor.close()
 
         scmd_04 = "INSERT INTO at_relation(e_id, addr_id) VALUES({}, {})".format(e_id, addr_id)
         try:
             g.conn.execute(scmd_04)
-        except Exception as ex:
+        except (Exception, psycopg2.Error, SystemError) as ex:
             print('rolling back database')
             rollback_event(e_id)
             rollback_address(addr_id)
-            raise ex
+            return render_error(str(ex))
 
         scmd_05 = "INSERT INTO publish_relation(admin_id, e_id) VALUES({}, {})"\
             .format(flask_login.current_user.id, e_id)
         try:
             g.conn.execute(scmd_05)
-        except Exception as ex:
+        except (Exception, psycopg2.Error, SystemError) as ex:
             print('rolling back database')
             rollback_event(e_id)
             rollback_address(addr_id)
             # no need to roll back at_relation since it's deleted ON CASCADE
-            raise ex
+            return render_error(str(ex))
 
 
     return render_template('add_event.html', **dict())
@@ -446,7 +514,10 @@ def addEvent():
 def register_event(e_id, user_id):
     scmd_1 = "INSERT INTO register_relation(user_id, event_id) " \
              "VALUES ({}, {});".format(user_id, e_id)
-    g.conn.execute(scmd_1)
+    try:
+        g.conn.execute(scmd_1)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
 
 
 @app.route('/event', methods=['GET'])
@@ -459,7 +530,10 @@ def event():
              "(SELECT COUNT(*) FROM register_relation as R WHERE R.user_id={} and R.event_id=E.e_id) as counts\n" \
              "FROM event as E, at_relation as R, address as A\n" \
              "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id;".format(flask_login.current_user.id)
-    cursor = g.conn.execute(scmd_1)
+    try:
+        cursor = g.conn.execute(scmd_1)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     events = []
     for result in cursor:
         # filter out events whose end_time < now
@@ -484,7 +558,10 @@ def event():
 def event_user(e_id):
     scmd_1 = "SELECT U.name as name, U.user_id as user_id FROM register_relation R, users U "\
              "WHERE R.user_id=U.user_id AND R.event_id={};".format(e_id)
-    cursor = g.conn.execute(scmd_1)
+    try:
+        cursor = g.conn.execute(scmd_1)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     users = []
     for result in cursor:
         user = dict()
@@ -509,10 +586,13 @@ def addComment():
     content_id = request.form.get('content_id')
 
     scmd_1 = "INSERT INTO comments(text) VALUES (%s) RETURNING c_id;"
-    cursor = g.conn.execute(scmd_1, text)
+    try:
+        cursor = g.conn.execute(scmd_1, text)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     row = cursor.fetchone()
     if not row:
-        raise SystemError('Error in inserting into comments table')
+        return render_error('Error in inserting into comments table')
     cursor.close()
 
     c_id = row['c_id']
@@ -521,10 +601,10 @@ def addComment():
              "VALUES ({}, {});".format(flask_login.current_user.id, c_id)
     try:
         g.conn.execute(scmd_2)
-    except Exception as ex:
+    except (Exception, psycopg2.Error, SystemError) as ex:
         print('rollback database')
         g.conn.execute(scmd_1_del)
-        raise ex
+        return render_error(str(ex))
 
 
     scmd_2_del = "DELETE FROM postcomment_relation " \
@@ -533,11 +613,11 @@ def addComment():
              "VALUES ({}, {}, {});".format(c_id, content_id, double_quote(time_now()))
     try:
         g.conn.execute(scmd_3)
-    except Exception as ex:
+    except (Exception, psycopg2.Error, SystemError) as ex:
         print('rollback database')
         g.conn.execute(scmd_1_del)
         g.conn.execute(scmd_2_del)
-        raise ex
+        return render_error(str(ex))
 
     return redirect(url_for('show', c_id = content_id))
 
@@ -556,9 +636,13 @@ def addContent():
     '''
     scmd_1 = "INSERT INTO content(image, text) " \
              "VALUES (%s, %s) RETURNING c_id;"
-    cursor = g.conn.execute(scmd_1, image, text)
+    try:
+        cursor = g.conn.execute(scmd_1, image, text)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     row = cursor.fetchone()
-    if not row: raise SystemError('Error in inserting into content table')
+    if not row:
+        return render_error('Error in inserting into content table')
     c_id = row['c_id']
     cursor.close()
     scmd_1_del = "DELETE FROM content WHERE c_id={}".format(c_id)
@@ -567,10 +651,10 @@ def addContent():
 
     try:
         g.conn.execute(scmd_2)
-    except Exception as ex:
+    except (Exception, psycopg2.Error, SystemError) as ex:
         print('rollback database')
         g.conn.execute(scmd_1_del)
-        raise  ex
+        return render_error(str(ex))
 
     return redirect(url_for('profile'))
 
@@ -580,7 +664,10 @@ def addLike():
     content_id = request.form.get('content_id')
     scmd_1 = "INSERT INTO like_relation(user_id, content_id) " \
              "VALUES ({}, {});".format(flask_login.current_user.id, content_id)
-    g.conn.execute(scmd_1)
+    try:
+        g.conn.execute(scmd_1)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     return redirect(url_for('show', c_id = content_id))
 
 
@@ -589,7 +676,10 @@ def addFollowing():
     following_id = request.form.get('user_id')
     scmd_1 = "INSERT INTO follow_relation(following_id, follower_id) " \
              "VALUES ({}, {});".format(following_id, flask_login.current_user.id)
-    g.conn.execute(scmd_1)
+    try:
+        g.conn.execute(scmd_1)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     return redirect(url_for('following'))
 
 
@@ -606,8 +696,11 @@ def deleteContent():
                               "WHERE C.c_id=P.comment_id AND P.content_id={});".format(content_id)
 
     scmd_01 = "DELETE FROM content WHERE c_id={};".format(content_id)
-    g.conn.execute(scmd_02)
-    g.conn.execute(scmd_01)
+    try:
+        g.conn.execute(scmd_02)
+        g.conn.execute(scmd_01)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     return redirect(url_for('profile'))
 
 
@@ -617,7 +710,10 @@ def deleteFollowing():
     following_id = request.form.get('user_id')
     scmd_01 = "DELETE FROM follow_relation " \
               "WHERE follower_id={} and following_id={};".format(flask_login.current_user.id, following_id)
-    g.conn.execute(scmd_01)
+    try:
+        g.conn.execute(scmd_01)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     return redirect(url_for('following'))
 
 
@@ -630,12 +726,18 @@ def modifyCategory():
     user_id = flask_login.current_user.id
     scmd_01 = "DELETE FROM belongto_relation " \
               "WHERE user_id={};".format(user_id)
-    g.conn.execute(scmd_01)
+    try:
+        g.conn.execute(scmd_01)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
 
     values = ['({}, {})'.format(user_id, c_id) for c_id in selectedCategory]
     scmd_02 = "INSERT INTO belongto_relation(user_id, c_id) " \
               "VALUES {};".format(', '.join(values))
-    g.conn.execute(scmd_02)
+    try:
+        g.conn.execute(scmd_02)
+    except (Exception, psycopg2.Error, SystemError) as ex:
+        return render_error(str(ex))
     return redirect(url_for('profile'))
 
 
@@ -650,22 +752,24 @@ def register():
             cursor = g.conn.execute("SELECT * FROM users WHERE name=%s;", username)
             row = cursor.fetchone()
             if row:
-                error = 'duplicate name detected, use a different name'
-                return render_template('register.html', error=error)
+                msg = 'duplicate name detected, use a different name'
+                return render_template('register.html', error=msg)
 
 
             # use this to get auto-incremented primary key value
             cursor = g.conn.execute("INSERT INTO users(date_of_birth, pwd, name) \n"
                                     "VALUES (%s, %s, %s) RETURNING user_id;", (dateOfBirth, password, username))
             row = cursor.fetchone()
-            if not row: raise SystemError('Insertion failed')
+            if not row:
+                return render_error('Registering user failed')
+
             print('Created user with id {}'.format(row['user_id']))
             return redirect(url_for('login'))
 
         except Exception as e:
             print(e)
-            error = 'error occured in executing SQL command'
-            return render_template('register.html', error=error)
+            msg = 'error occured in executing SQL command'
+            return render_template('register.html', error=msg)
 
     else:
         return render_template('register.html')
@@ -679,7 +783,10 @@ def login():
         username = request.form['username']
         password = request.form['password']
 
-        cursor = g.conn.execute("SELECT * FROM users WHERE name=%s AND pwd=%s;", (username, password))
+        try:
+            cursor = g.conn.execute("SELECT * FROM users WHERE name=%s AND pwd=%s;", (username, password))
+        except (Exception, psycopg2.Error, SystemError) as ex:
+            return render_error(str(ex))
 
         row = cursor.fetchone()
         cursor.close()
@@ -706,7 +813,10 @@ def admin_login():
         username = request.form['username']
         password = request.form['password']
 
-        cursor = g.conn.execute("SELECT * FROM admin WHERE name=%s AND pwd=%s;", (username, password))
+        try:
+            cursor = g.conn.execute("SELECT * FROM admin WHERE name=%s AND pwd=%s;", (username, password))
+        except (Exception, psycopg2.Error, SystemError) as ex:
+            return render_error(str(ex))
 
         row = cursor.fetchone()
         cursor.close()
@@ -721,7 +831,6 @@ def admin_login():
         else:
             error = 'Invalid username or password. Please try again!'
             flash(error)
-
             return render_template('admin_login.html')
 
     else:
