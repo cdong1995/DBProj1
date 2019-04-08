@@ -19,6 +19,11 @@ login_manager = flask_login.LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+"""
+add more events
+add more likes
+"""
+
 
 def time_now():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -103,17 +108,6 @@ def teardown_request(exception):
         print(e)
 
 
-# @app.route is a decorator around index() that means:
-#   run index() whenever the user tries to access the "/" path using a GET request
-#
-# If you wanted the user to go to, for example, localhost:8111/foobar/ with POST or GET then you could use:
-#
-#       @app.route("/foobar/", methods=["POST", "GET"])
-#
-# PROTIP: (the trailing / in the path is important)
-# 
-# see for routing: http://flask.pocoo.org/docs/0.10/quickstart/#routing
-# see for decorators: http://simeonfranklin.com/blog/2012/jul/1/python-decorators-in-12-steps/
 @app.route('/')
 def index():
     """
@@ -165,8 +159,8 @@ def index():
 
 @app.route('/world', methods=['GET'])
 def world():
-    if(check_user_type() == 'True'):
-        return redirect(url_for('login'))
+    if check_user_type() == 'True':
+        return redirect(url_for('admin_event'))
     cursor = g.conn.execute("SELECT C.c_id, C.image, C.text, COUNT(L.user_id) as likes \n"
                             "FROM content as C LEFT JOIN like_relation as L ON C.c_id=L.content_id \n"
                             "GROUP BY C.c_id, C.image, C.text \n"
@@ -177,7 +171,6 @@ def world():
     cursor.close()
 
     context = dict(data=content)
-    print(flask_login.current_user.get_id())
     return render_template('world.html', **context)
 
 
@@ -195,10 +188,11 @@ def get_categories(user_id):
     cursor.close()
     return category
 
+
 @app.route('/show/<c_id>', methods=['GET'])
 def show(c_id):
-    if(check_user_type() == 'True'):
-        return redirect(url_for('login'))
+    if check_user_type() == 'True':
+        return redirect(url_for('admin_event'))
     # why use RIGHT JOIN? Think about this: c_id is not in like_relation
     scmd_0 = "SELECT C.c_id as c_id, U.user_id as user_id, U.name as name, " \
              "C.image as image, C.text as text, \n" \
@@ -258,9 +252,10 @@ def show(c_id):
     cursor.close()
     return render_template('show.html', **context)
 
+
 @app.route('/profile', methods=['GET'])
 def profile():
-    if(check_user_type() == 'True'):
+    if check_user_type() == 'True':
         return redirect(url_for('login'))
     sql_cmd = "SELECT C.c_id as c_id, " \
               "(SELECT COUNT(L.user_id) FROM like_relation as L RIGHT JOIN content as C1 ON L.content_id=C1.c_id\n" \
@@ -297,8 +292,8 @@ def profile():
 
 @app.route('/following', methods=['GET'])
 def following():
-    if(check_user_type() == 'True'):
-        return redirect(url_for('login'))
+    if check_user_type() == 'True':
+        return redirect(url_for('admin_event'))
     sql_cmd = "SELECT C.c_id as content_id, " \
               "(SELECT COUNT(L.user_id) FROM like_relation as L RIGHT JOIN content as C1 ON C1.c_id=L.content_id\n" \
               "WHERE C1.c_id=C.c_id) as likes, " \
@@ -326,19 +321,6 @@ def following():
 
     return render_template('following.html', **context)
 
-'''
-TODO administor delete an event
-'''
-def admin_del_event(e_id):
-    """
-    only allow administrator to delete an event published by him/her
-    enforced by: e_id
-
-    :param e_id:
-    :return:
-    """
-    scmd_1 = "DELETE FROM event WHERE e_id={};".format(e_id)
-    g.conn.execute(scmd_1)
 
 @app.route('/admin_delete_event', methods=['POST'])
 def admin_delete_event():
@@ -346,50 +328,20 @@ def admin_delete_event():
     scmd_1 = "DELETE FROM event WHERE e_id={};".format(event_id)
     g.conn.execute(scmd_1)
     return redirect(url_for('admin_event'))
-"""
-TODO
-Ideas of using GROUP BY
-1. calculate the number of events by address
-2. TODO
-3. TODO
-"""
 
-
-'''
-TODO administrator login page
-see all published events
-'''
-def event_by_admin(admin_id):
-    scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
-             "A.city as city, A.street as street, A.zipcode as zipcode," \
-             "E.start_time as start_time, E.end_time = E.end_time\n" \
-             "FROM event as E, at_relation as R, address as A, admin as D\n" \
-             "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id AND D.admin_id={};".format(admin_id)
-    cursor = g.conn.execute(scmd_1)
-    events = []
-    for result in cursor:
-        content = dict()
-        content['e_id'] = result['e_id']
-        content['addr_id'] = result['addr_id']
-        content['city'] = result['city']
-        content['street'] = result['streeet']
-        content['zipcode'] = result['zipcode']
-        content['start_time'] = result['start_time']
-        content['end_time'] = result['end_time']
-        events.append(content)
-    cursor.close()
 
 @app.route('/admin_event', methods=['GET'])
 def admin_event():
-    if(check_user_type() == 'False'):
+    if check_user_type() == 'False':
         return redirect(url_for('admin_login'))
     admin_id = flask_login.current_user.get_id().split(' ')[0]
     print(admin_id)
     scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
              "A.city as city, A.street as street, A.zipcode as zipcode," \
              "E.start_time as start_time, E.end_time as end_time\n" \
-             "FROM event as E, at_relation as R, address as A, admin as D\n" \
-             "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id AND D.admin_id={};".format(admin_id)
+             "FROM event as E, at_relation as R, address as A, admin as D, publish_relation as P\n" \
+             "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id AND D.admin_id={} " \
+             "AND D.admin_id=P.admin_id AND E.e_id=P.e_id;".format(admin_id)
     cursor = g.conn.execute(scmd_1)
     events = []
     for result in cursor:
@@ -407,72 +359,106 @@ def admin_event():
     return render_template('admin_event.html', **context)
 
 
+
 @app.route('/addEvent', methods=['GET', 'POST'])
 def addEvent():
-    if(check_user_type() == 'False'):
+    def rollback_event(e_id):
+        scmd = "DELETE FROM event WHERE e_id={}".format(e_id)
+        g.conn.execute(scmd)
+
+    def rollback_address(addr_id):
+        scmd = "DELETE FROM address WHERE addr_id={}".format(addr_id)
+        g.conn.execute(scmd)
+
+
+    if check_user_type() == 'False':
         return redirect(url_for('admin_login'))
     if request.method == 'GET':
         return render_template('add_event.html')
     else:
-        # TODO add to database
-        print(request.form)
-        return redirect(url_for('admin_event'))
+        d = request.form
+        print(d)
+
+        scmd_01 = "INSERT INTO event(start_time, end_time) " \
+                  "VALUES({}, {}) RETURNING e_id".format(double_quote(d['start_date'] + ' ' + d['start_time']),
+                                                         double_quote(d['end_date'] + ' ' + d['end_time']))
+        cursor = g.conn.execute(scmd_01)
+        row = cursor.fetchone()
+        if not row:
+            raise Exception('Error in inserting into database')
+        e_id = row['e_id']
+        cursor.close()
+        city, street, zipcode = d['city'], d['street'], d['zipcode']
+        scmd_02 = "SELECT addr_id FROM address as A " \
+                  "WHERE A.city={} AND A.street={} AND A.zipcode={}".format(double_quote(city),
+                                                                            double_quote(street),
+                                                                            double_quote(zipcode))
+        try:
+            cursor = g.conn.execute(scmd_02)
+        except Exception as ex:
+            print('rolling back database')
+            rollback_event(e_id)
+            raise ex
+
+        row = cursor.fetchone()
+        if row:
+            addr_id = row['addr_id']
+            cursor.close()
+        else:
+            cursor.close()
+            scmd_03 = "INSERT INTO address(city, street, zipcode) " \
+                      "VALUES({}, {}, {}) RETURNING addr_id".format(double_quote(city),
+                                                  double_quote(street),
+                                                  double_quote(zipcode))
+            cursor = g.conn.execute(scmd_03)
+            row = cursor.fetchone()
+            if not row:
+                print('rolling back database')
+                rollback_event(e_id)
+                raise Exception('Insertion into address table failed')
+            addr_id = row['addr_id']
+            cursor.close()
+
+        scmd_04 = "INSERT INTO at_relation(e_id, addr_id) VALUES({}, {})".format(e_id, addr_id)
+        try:
+            g.conn.execute(scmd_04)
+        except Exception as ex:
+            print('rolling back database')
+            rollback_event(e_id)
+            rollback_address(addr_id)
+            raise ex
+
+        scmd_05 = "INSERT INTO publish_relation(admin_id, e_id) VALUES({}, {})"\
+            .format(flask_login.current_user.id, e_id)
+        try:
+            g.conn.execute(scmd_05)
+        except Exception as ex:
+            print('rolling back database')
+            rollback_event(e_id)
+            rollback_address(addr_id)
+            # no need to roll back at_relation since it's deleted ON CASCADE
+            raise ex
 
 
-"""
-get all events registered by user
-"""
-def event_by_user(user_id):
-    scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, G.time as time, " \
-             "A.city as city, A.street as street, A.zipcode as zipcode," \
-             "E.start_time as start_time, E.end_time as end_time\n" \
-             "FROM event as E, at_relation as R, address as A, users as U, register_relation as G\n" \
-             "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id AND U.user_id={} " \
-             "AND G.user_id=U.user_id AND G.event_id=E.e_id;".format(user_id)
-    cursor = g.conn.execute(scmd_1)
-    events = []
-    for result in cursor:
-        content = dict()
-        content['e_id'] = result['e_id']
-        content['addr_id'] = result['addr_id']
-        content['city'] = result['city']
-        content['street'] = result['streeet']
-        content['zipcode'] = result['zipcode']
-        content['start_time'] = result['start_time']
-        content['end_time'] = result['end_time']
-        content['register_time'] = result['time']
-        events.append(content)
-    cursor.close()
+    return render_template('add_event.html', **dict())
 
 
 def register_event(e_id, user_id):
-    """
-    fecthes start_time and end_time from event table first
-    check if now() < event.end_time
-    :param e_id:
-    :param user_id:
-    :return: True if successfully registered, False if not successful
-    """
-    # now = datetime.datetime.now()
-    # end_time = str2datetime(end_time)
-    # if now >= end_time:
-    #     return False
-
-
     scmd_1 = "INSERT INTO register_relation(user_id, event_id) " \
              "VALUES ({}, {});".format(user_id, e_id)
     g.conn.execute(scmd_1)
-    return True
+
 
 @app.route('/event', methods=['GET'])
 def event():
-    if(check_user_type() == 'True'):
-        return redirect(url_for('login'))
+    if check_user_type() == 'True':
+        return redirect(url_for('admin_event'))
     scmd_1 = "SELECT E.e_id as e_id, A.addr_id as addr_id, " \
              "A.city as city, A.street as street, A.zipcode as zipcode," \
-             "E.start_time as start_time, E.end_time as end_time\n" \
+             "E.start_time as start_time, E.end_time as end_time," \
+             "(SELECT COUNT(*) FROM register_relation as R WHERE R.user_id={} and R.event_id=E.e_id) as counts\n" \
              "FROM event as E, at_relation as R, address as A\n" \
-             "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id;"
+             "WHERE E.e_id=R.e_id AND A.addr_id=R.addr_id;".format(flask_login.current_user.id)
     cursor = g.conn.execute(scmd_1)
     events = []
     for result in cursor:
@@ -487,19 +473,12 @@ def event():
         content['zipcode'] = result['zipcode']
         content['start_time'] = result['start_time']
         content['end_time'] = result['end_time']
-
-        cursor_1 = g.conn.execute('SELECT * FROM register_relation R WHERE R.user_id=%s AND R.event_id=%s;',
-                                (flask_login.current_user.id, content['e_id']))
-        row = cursor_1.fetchone()
-        if row:
-            content['has_registered'] = True
-        else:
-            content['has_registered'] = False
-        cursor_1.close()
+        content['has_registered'] = result['counts'] > 0
         events.append(content)
     cursor.close()
     context = dict(data=events)
     return render_template('event.html', **context)
+
 
 @app.route('/event_user/<e_id>', methods=['GET'])
 def event_user(e_id):
@@ -515,6 +494,7 @@ def event_user(e_id):
     cursor.close()
     context = dict(data=users)
     return render_template('event-user.html', **context)
+
 
 @app.route('/registerEvent', methods=['POST'])
 def registerEvent():
@@ -542,6 +522,7 @@ def addComment():
     try:
         g.conn.execute(scmd_2)
     except Exception as ex:
+        print('rollback database')
         g.conn.execute(scmd_1_del)
         raise ex
 
@@ -553,6 +534,7 @@ def addComment():
     try:
         g.conn.execute(scmd_3)
     except Exception as ex:
+        print('rollback database')
         g.conn.execute(scmd_1_del)
         g.conn.execute(scmd_2_del)
         raise ex
@@ -560,14 +542,21 @@ def addComment():
     return redirect(url_for('show', c_id = content_id))
 
 
+
 @app.route('/addContent', methods=['POST'])
 def addContent():
     image = request.form.get('image')
+    text = request.form.get('text')
+    '''
     image = double_quote(image)
-    text = double_quote(request.form.get('text'))
+    text = double_quote(text)
     scmd_1 = "INSERT INTO content(image, text) " \
              "VALUES ({}, {}) RETURNING c_id;".format(image, text)
     cursor = g.conn.execute(scmd_1)
+    '''
+    scmd_1 = "INSERT INTO content(image, text) " \
+             "VALUES (%s, %s) RETURNING c_id;"
+    cursor = g.conn.execute(scmd_1, image, text)
     row = cursor.fetchone()
     if not row: raise SystemError('Error in inserting into content table')
     c_id = row['c_id']
@@ -579,10 +568,12 @@ def addContent():
     try:
         g.conn.execute(scmd_2)
     except Exception as ex:
+        print('rollback database')
         g.conn.execute(scmd_1_del)
         raise  ex
 
     return redirect(url_for('profile'))
+
 
 @app.route('/addLike', methods=['POST'])
 def addLike():
@@ -592,6 +583,7 @@ def addLike():
     g.conn.execute(scmd_1)
     return redirect(url_for('show', c_id = content_id))
 
+
 @app.route('/addFollowing', methods=['POST'])
 def addFollowing():
     following_id = request.form.get('user_id')
@@ -599,6 +591,7 @@ def addFollowing():
              "VALUES ({}, {});".format(following_id, flask_login.current_user.id)
     g.conn.execute(scmd_1)
     return redirect(url_for('following'))
+
 
 
 @app.route('/deleteContent', methods=['POST'])
@@ -678,6 +671,7 @@ def register():
         return render_template('register.html')
 
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -703,6 +697,7 @@ def login():
 
     else:
         return render_template("login.html")
+
 
 @app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
@@ -733,14 +728,13 @@ def admin_login():
         return render_template("admin_login.html")
 
 
+
 @app.route('/logout', methods=['GET'])
 @flask_login.login_required
 def logout():
     flask_login.logout_user()
 
     return redirect(url_for('index'))
-
-
 
 
 if __name__ == "__main__":

@@ -38,7 +38,7 @@
                         <p>{{event.get('start_time')}} ~ {{event.get('end_time')}}</p>
                         <br>
                         <p>
-                            <a href="{{ url_for('event_user', e_id = event.get('e_id')) }}" class="btn btn-primary">People attend</a>
+                            <a href="{{ url_for('event_user', e_id = event.get('e_id')) }}" class="btn btn-primary">Rigistered People</a>
                         </p>
                          <form action="{{url_for('admin_delete_event')}}" method="POST">
                                 <input type="hidden" name="event_id" value={{event.get('e_id')}}>
